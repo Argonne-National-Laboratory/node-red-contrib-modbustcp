@@ -1,27 +1,56 @@
- {
-	"name": "node-red-contrib-modbus",
-	"version": "0.1.0",
-	"description": "A Node-RED node to communicate MODBUS TCP. Uses node jsmodbus library.",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/mikakaraila/node-red-contrib-modbus.git"
-	},
-	"keywords": [ "node-red", "MODBUS TCP" ],
-	"author": {
-		"name": "Mika Karaila",
-		"email" : "mika.karaila@gmail.com"
-	},
-	"license": "Apache",
-	"bugs": {
-		"url": "https://github.com/mikakaraila/node-red-contrib-modbus/issues"
-	},
-	"node-red": {
-		"nodes": {
-			"modbus tcp": "27-modbus.js"
-		}
-	},
-	"dependencies": {
-		"node-jsmodbus": "~0.4.0"
-        "put": "~0.0.6"
-	}
+{
+  "name": "node-red-contrib-modbus",
+  "version": "0.1.1",
+  "description": "A Node-RED node to communicate MODBUS TCP. Uses node jsmodbus library.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikakaraila/node-red-contrib-modbus.git"
+  },
+  "keywords": [
+    "node-red",
+    "MODBUS TCP"
+  ],
+  "author": {
+    "name": "Mika Karaila",
+    "email": "mika.karaila@gmail.com"
+  },
+  "license": "Apache",
+  "bugs": {
+    "url": "https://github.com/mikakaraila/node-red-contrib-modbus/issues"
+  },
+  "node-red": {
+    "nodes": {
+      "modbus tcp": "27-modbus-tcp.js",
+      "modbusitem": "28-modbusitem.js",
+      "modbus server tcp": "29-modbus-server-tcp.js"
+    }
+  },
+  "dependencies": {
+    "jsmodbus": "~0.4.0",
+    "put": "~0.0.6"
+  },
+  "gitHead": "8d800f0534206d4150f5c6863a2a5a8143a45e26",
+  "homepage": "https://github.com/mikakaraila/node-red-contrib-modbus#readme",
+  "_id": "node-red-contrib-modbus@0.1.0",
+  "scripts": {},
+  "_shasum": "bf8d0face14597ec9ee046bfe16b4af40161205a",
+  "_from": "node-red-contrib-modbus@*",
+  "_npmVersion": "2.11.3",
+  "_nodeVersion": "0.12.7",
+  "_npmUser": {
+    "name": "ykornilov",
+    "email": "kornilovyv81@gmail.com"
+  },
+  "dist": {
+    "shasum": "bf8d0face14597ec9ee046bfe16b4af40161205a",
+    "tarball": "http://registry.npmjs.org/node-red-contrib-modbus/-/node-red-contrib-modbus-0.1.0.tgz"
+  },
+  "maintainers": [
+    {
+      "name": "ykornilov",
+      "email": "kornilovyv81@gmail.com"
+    }
+  ],
+  "directories": {},
+  "_resolved": "https://registry.npmjs.org/node-red-contrib-modbus/-/node-red-contrib-modbus-0.1.0.tgz"
 }
