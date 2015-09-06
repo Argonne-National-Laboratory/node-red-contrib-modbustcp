@@ -16,123 +16,104 @@
 
 /**
  NodeRed node with support for MODBUS TCP based on jsmodbus.
-
- @author <a href="mailto:mika.karaila@valmet.com">Mika Karaila</a> (Valmet Automation Inc.)
 **/
-module.exports = function(RED) {
-    "use strict";
-    var RED = require(process.env.NODE_RED_HOME+"/red/red");
-    var settings = RED.settings;
-    var util    = require('util');
-    var jsmodbus  = require('./jsmodbus');
 
-    function ModbusTcpNode(n) {
-        RED.nodes.createNode(this,n);
-        this.name = n.name;
-        this.host = n.host;
-        this.port = n.port;
-        var node  = this;
-        var client = null;
-        node.on("input", function(msg) {
-            if (!client) {
-                client = jsmodbus.createTCPClient(n.port, n.host);
-                console.log("MODBUS Client created!");
-            }
-            if (msg.fc===1) // readCoils
-            {
-                client.readCoils (msg.start, msg.count, function (resp, err) { 
-                    if (err) {
-                        console.log(err);
-                        return;
-                    }
-                    if (resp) // && resp.coils.length() > 0)  // TODO end_reg - start_reg == resp.register.length()
-                    {
-                        msg.payload = resp.coils; // array of coil values true or false
-                        node.send(msg);
-                    }
-                });
-            }
-            if (msg.fc===2) // readSingleCoil
-            {
-                client.readDiscreteInputs (msg.start, msg.count, function (resp) {
-                    if (resp) {
-                        console.log("ReadDiscreteInputs done ok");
-                        msg.payload = resp.registers; // value read
-                        node.send(msg);
-                    }
-                });
-            }
-            if (msg.fc===3) // readHoldingRegisters
-            {
-                client.readHoldingRegisters (msg.start, msg.count,function (resp) {
-                    if (resp) // && resp.register.length() > 0)  // TODO end_reg - start_reg == resp.register.length()
-                    {
-                        msg.payload = resp.registers; // array of register values
-                        node.send(msg);
-                    }
-                });
-            }
-            if (msg.fc===4) // "readInputRegister"
-            {
-                client.readInputRegister (msg.start_reg, msg.end_reg, function (resp) { 
-                    if (resp) { // && resp.register.length() > 0)  // TODO end_reg - start_reg == resp.register.length()
-                        msg.payload = resp.register; // array of register values
-                        node.send(msg);
-                    }
-                });
-            }
-            if (msg.fc===5) // "writeSingleCoil" (forceSingleCoil)
-            {
-                client.writeSingleCoil (msg.start_reg, msg.payload, function (resp) {
-                    if (resp) 
-                    {
-                        console.log("WriteSingleCoil done!");
-                        msg.payload = resp.payload; // value written
-                        node.send(msg);
-                    }
-                });
-            }
-			if (msg.fc===6) // writeSingleRegister
-            {
-                client.writeSingleRegister (msg.start_reg, msg.payload, function (resp) {
-                    if (resp) 
-                    {
-                        console.log("writeSingleRegister done!");
-                        msg.payload = resp.payload; // value written
-                        node.send(msg);
-                    }
-                });
-            }
-			if (msg.fc===15) // writeMultipleCoils
-            {
-                client.writeMultipleCoils (msg.start_reg, msg.payload, function (resp) {
-                    if (resp) 
-                    {
-                        console.log("writeMultipleCoils done!");
-                        msg.payload = resp.payload; // value written
-                        node.send(msg);
-                    }
-                });
-            }
-			if (msg.fc===16) // writeMultipleRegisters
-            {
-                client.writeMultipleRegisters (msg.start_reg, msg.payload, function (resp) {
-                    if (resp) 
-                    {
-                        console.log("writeMultipleRegisters done!");
-                        msg.payload = resp.payload; // value written
-                        node.send(msg);
-                    }
-                });
-            }
-        });
-        node.on("close", function(msg) {
-            if (client) {
-                client.close();
-                console.log("MODBUS Client closed");
-                client = null;
-            }
+function timestamp() {
+    return new Date().
+        toISOString().
+        replace(/T/, ' ').      // replace T with a space
+        replace(/\..+/, '')
+}
+function log(msg, args) {
+    if (args)
+        console.log(timestamp() + ': ' + msg, args);
+    else
+        console.log(timestamp() + ': ' + msg);
+}
+
+module.exports = function (RED) {
+
+    log("loading modbustcpmaster.js for node-red");
+    var modbus = require('./src/modbustcpmaster');
+
+    /**
+     * ====== ModbusTCP-CONTROLLER ===========
+     * Holds configuration for modbustcpmaster host+port,
+     * initializes new modbustcpmaster connections
+     * =======================================
+     */
+    function ModbusTCPControllerNode(config) {
+        log("new ModbusTCPControllerNode, config: %j", config);
+        RED.nodes.createNode(this, config);
+        this.host = config.host;
+        this.port = config.port;
+        this.modbusconn = null;
+        var node = this;
+
+        this.on("close", function () {
+            log('disconnecting from modbustcp slave at %s:%d', [config.host, config.port]);
+            node.modbusconn && node.modbusconn.Disconnect && node.modbusconn.Disconnect();
         });
     }
-    RED.nodes.registerType("modbus tcp",ModbusTcpNode);
+
+    RED.nodes.registerType("modbustcp-controller", ModbusTCPControllerNode);
+
+    /**
+     * ====== ModbusTCP-OUT ==================
+     * Sends outgoing ModbusTCP telegrams from
+     * messages received via node-red flows
+     * =======================================
+     */
+    function ModbusTCPOut(config) {
+        log('new ModbusTCP-OUT, config: %j', config);
+        RED.nodes.createNode(this, config);
+        this.name = config.name;
+        this.type = config.type;
+        this.adr = config.adr;
+        this.ctrl = RED.nodes.getNode(config.controller);
+        var node = this;
+        //
+        this.on("input", function (msg) {
+
+        });
+        this.on("close", function () {
+            log('ModbusTCPOut.close');
+        });
+    }
+
+    //
+    RED.nodes.registerType("modbustcp-out", ModbusTCPOut);
+
+    /**
+     * ====== ModbusTCP-IN ===================
+     * Handles incoming ModbusTCP events, injecting
+     * json into node-red flows
+     * =======================================
+     */
+    function ModbusTCPIn(config) {
+        log('new ModbusTCP-IN, config: %j', config);
+        RED.nodes.createNode(this, config);
+        this.name = config.name;
+        this.type = config.type;
+        this.adr = config.adr;
+        this.connection = null;
+        var node = this;
+        var ctrl = RED.nodes.getNode(config.controller);
+        /* ===== Node-Red events ===== */
+        this.on("input", function (msg) {
+            if (msg != null) {
+
+            }
+        });
+        var that = this;
+        this.on("close", function () {
+        });
+
+        /* ===== modbustcp events ===== */
+        // initialize incoming modbusTCP event socket (openGroupSocket)
+        // there's only one connection for modbustcp-in:
+    }
+
+    //
+    RED.nodes.registerType("modbustcp-in", ModbusTCPIn);
 }
