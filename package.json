@@ -20,7 +20,7 @@
   },
   "node-red": {
     "nodes": {
-      "modbus tcp": "modbus-tcp.js"
+      "modbus tcp": "modbustcp.js"
     }
   },
   "dependencies": {
