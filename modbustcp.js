@@ -17,7 +17,6 @@
 /**
  NodeRed node with support for MODBUS TCP based on jsmodbus.
 **/
-
 function timestamp() {
     return new Date().
         toISOString().
@@ -31,12 +30,14 @@ function log(msg, args) {
         console.log(timestamp() + ': ' + msg);
 }
 
+
 module.exports = function (RED) {
+    var RED = require(process.env.NODE_RED_HOME+"/red/red");
 
     log("loading modbustcpmaster.js for node-red");
-    var modbus = require('./src/modbustcpmaster');
+    var modbus = require('modbustcpmaster');
 
-    /**
+        /**
      * ====== ModbusTCP-CONTROLLER ===========
      * Holds configuration for modbustcpmaster host+port,
      * initializes new modbustcpmaster connections
@@ -50,14 +51,42 @@ module.exports = function (RED) {
         this.modbusconn = null;
         var node = this;
 
+         /**
+         * Initialize an modbustcp socket, calling the handler function
+         * when successfully connected, passing it the modbustcp connection
+         */
+        this.initializeModbusTCPConnection = function (handler) {
+            if (node.modbusconn) {
+                log('already connected to modbustcp slave at ' + config.host + ':' + config.port);
+                if (handler && (typeof handler === 'function')){
+                    log(handler);
+                    handler(node.modbusconn);
+                }
+                return node.modbusconn;
+            }
+            log('connecting to modbustcp slave at ' + config.host + ':' + config.port);
+            node.modbusconn = null;
+            node.modbusconn = modbus.create(config.port, config.host, function(err){
+                if (err) {
+                    log('connecting to modbustcp slave at ' + config.host + ':' + config.port);
+                    return null;
+                } 
+                log('ModbusTCP: successfully connected to ' + config.host + ':' + config.port);
+            });
+            node.modbusconn.connect();
+            if (handler && (typeof handler === 'function'))
+                handler(node.modbusconn);
+            return node.modbusconn;
+        };
+
+        /* ===== Node-Red events ===== */
         this.on("close", function () {
             log('disconnecting from modbustcp slave at %s:%d', [config.host, config.port]);
-            node.modbusconn && node.modbusconn.Disconnect && node.modbusconn.Disconnect();
+            node.modbusconn && node.modbusconn.disconnect && node.modbusconn.disconnect();
         });
     }
 
     RED.nodes.registerType("modbustcp-controller", ModbusTCPControllerNode);
-
     /**
      * ====== ModbusTCP-OUT ==================
      * Sends outgoing ModbusTCP telegrams from
@@ -68,52 +97,70 @@ module.exports = function (RED) {
         log('new ModbusTCP-OUT, config: %j', config);
         RED.nodes.createNode(this, config);
         this.name = config.name;
-        this.type = config.type;
+        this.dataType = config.dataType;
         this.adr = config.adr;
         this.ctrl = RED.nodes.getNode(config.controller);
         var node = this;
-        //
+        /* ===== Node-Red events ===== */
         this.on("input", function (msg) {
+            log('modbustcp-out.onInput, msg=%j', msg);
+            if (!(msg && msg.hasOwnProperty('payload'))) return;
+            
+            if (msg.payload == null) {
+                log('modbustcp-out.onInput: illegal msg.payload!');
+                return;
+            }
 
+            switch (node.dataType) {
+                case "Coil":
+                    this.ctrl.initializeModbusTCPConnection(function(connection){
+                        connection.writeSingleCoil(+node.adr, +msg.payload);
+                    })
+                    break;
+                case "HoldingRegister":
+                    this.ctrl.initializeModbusTCPConnection(function(connection){
+                        connection.writeSingleRegister(+node.adr, +msg.payload);
+                    })
+                    break;
+            }
         });
+
         this.on("close", function () {
-            log('ModbusTCPOut.close');
+            log('modbustcp-out.close');
         });
     }
 
     //
     RED.nodes.registerType("modbustcp-out", ModbusTCPOut);
 
-    /**
-     * ====== ModbusTCP-IN ===================
-     * Handles incoming ModbusTCP events, injecting
-     * json into node-red flows
-     * =======================================
-     */
     function ModbusTCPIn(config) {
         log('new ModbusTCP-IN, config: %j', config);
         RED.nodes.createNode(this, config);
         this.name = config.name;
-        this.type = config.type;
+        this.dataType = config.dataType;
         this.adr = config.adr;
-        this.connection = null;
         var node = this;
-        var ctrl = RED.nodes.getNode(config.controller);
-        /* ===== Node-Red events ===== */
-        this.on("input", function (msg) {
-            if (msg != null) {
+        var modbusTCPController = RED.nodes.getNode(config.controller);
 
-            }
-        });
-        var that = this;
+        /* ===== Node-Red events ===== */
         this.on("close", function () {
         });
-
         /* ===== modbustcp events ===== */
-        // initialize incoming modbusTCP event socket (openGroupSocket)
+        // initialize incoming modbustcp event socket
         // there's only one connection for modbustcp-in:
+        modbusTCPController.initializeModbusTCPConnection(function(connection){
+            connection.on('Data.' + node.dataType + '.' + node.adr, function(val){
+                log('modbustcp event: Data.' + node.dataType + '.' + node.adr + '=' + val);
+                node.send({
+                    topic: 'modbustcp:event',
+                    payload: val
+                });
+            });
+        });
+
     }
 
     //
     RED.nodes.registerType("modbustcp-in", ModbusTCPIn);
+
 }

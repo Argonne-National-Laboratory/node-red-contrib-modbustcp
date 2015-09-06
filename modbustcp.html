@@ -19,13 +19,17 @@
 -->
 <script type="text/x-red" data-template-name="modbustcp-controller">
     <div class="form-row">
-        <label for="node-config-input-host"><i class="icon-bookmark"></i> modbusTCP Host</label>
+        <label for="node-config-input-host"><i class="icon-bookmark"></i> Host</label>
         <input type="text" id="node-config-input-host">
     </div>
     <div class="form-row">
-        <label for="node-config-input-port"><i class="icon-bookmark"></i> modbusTCP Port</label>
+        <label for="node-config-input-port"><i class="icon-bookmark"></i> Port</label>
         <input type="text" id="node-config-input-port">
     </div>
+</script>
+
+<script type="text/x-red" data-help-name="modbustcp-controller">
+    <p>Uses MODBUS TCP to read/write ethernet host:port and register/coil addresses.</p>
 </script>
 
 <script type="text/x-red" data-template-name="modbustcp-out">
@@ -34,10 +38,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
-        <label for="node-input-type"><i class="icon-bookmark"></i> modbus Type</label>
-        <select id="node-input-type">
-            <option value="coil">Coil</option>
-            <option value="holdingRegister">Holding Register</option>
+        <label for="node-input-dataType"><i class="icon-bookmark"></i> Type</label>
+        <select id="node-input-dataType">
+            <option value="Coil">Coil</option>
+            <option value="HoldingRegister">Holding Register</option>
         </select>
     </div>
     <div class="form-row">
@@ -48,6 +52,10 @@
         <label for="node-input-controller"><i class="icon-bookmark"></i> Controller</label>
         <input type="text" id="node-input-controller">
     </div>
+</script>
+
+<script type="text/x-red" data-help-name="modbustcp-out">
+    <p>Defines MODBUS Function Code and then other needed register/coil parameters.</p>
 </script>
 
 <script type="text/x-red" data-template-name="modbustcp-in">
@@ -55,25 +63,28 @@
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-        <div class="form-row">
-        <label for="node-input-type"><i class="icon-bookmark"></i> modbus Type</label>
-        <select id="node-input-type">
-            <option value="coil">Coil</option>
-            <option value="dInput">Discrete Input</option>
-            <option value="holdingRegister">Holding Register</option>
-            <option value="inputRegister">Input Register</option>
+    <div class="form-row">
+        <label for="node-input-dataType"><i class="icon-bookmark"></i> Type</label>
+        <select id="node-input-dataType">
+            <option value="Coil">Coil</option>
+            <option value="Input">Discrete Input</option>
+            <option value="HoldingRegister">Holding Register</option>
+            <option value="InputRegister">Input Register</option>
         </select>
     </div>
     <div class="form-row">
         <label for="node-input-adr"><i class="icon-bookmark"></i> Address</label>
         <input type="text" id="node-input-adr">
     </div>
-    <div class="form-row">
+        <div class="form-row">
         <label for="node-input-controller"><i class="icon-bookmark"></i> Controller</label>
         <input type="text" id="node-input-controller">
     </div>
 </script>
 
+<script type="text/x-red" data-help-name="modbustcp-in">
+    <p>Defines MODBUS Function Code and then other needed register/coil parameters.</p>
+</script>
 
 <script type="text/javascript">
     RED.nodes.registerType('modbustcp-controller', {
@@ -94,7 +105,7 @@
         color: 'BurlyWood',
         defaults: {
             name: {value: ""},
-            type: {value: "", required: true},
+            dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},
             controller: {value: "", type: "modbustcp-controller"}
         },
@@ -112,7 +123,7 @@
         color: 'BurlyWood',
         defaults: {
             name: {value: ""},
-            type: {value: "", required: true},
+            dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},
             controller: {value: "", type: "modbustcp-controller"}
         },
@@ -125,14 +136,4 @@
 </script>
 
 
-<script type="text/x-red" data-help-name="modbustcp-controller">
-    <p>Uses MODBUS TCP to read/write ethernet host:port and register/coil addresses.</p>
-</script>
 
-<script type="text/x-red" data-help-name="modbustcp-out">
-    <p>Defines MODBUS Function Code and then other needed register/coil parameters.</p>
-</script>
-
-<script type="text/x-red" data-help-name="modbustcp-in">
-    <p>Defines MODBUS Function Code and then other needed register/coil parameters.</p>
-</script>
