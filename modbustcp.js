@@ -35,7 +35,7 @@ module.exports = function (RED) {
     var RED = require(process.env.NODE_RED_HOME+"/red/red");
 
     log("loading modbustcpmaster.js for node-red");
-    var modbus = require('modbustcpmaster');
+    var modbus = require('jsmodbus');
 
         /**
      * ====== ModbusTCP-CONTROLLER ===========
@@ -44,10 +44,11 @@ module.exports = function (RED) {
      * =======================================
      */
     function ModbusTCPControllerNode(config) {
-        log("new ModbusTCPControllerNode, config: %j", config);
+        //log("new ModbusTCPControllerNode, config: %j", config);
         RED.nodes.createNode(this, config);
         this.host = config.host;
         this.port = config.port;
+        this.coils = config.coils || [];
         this.modbusconn = null;
         var node = this;
 
@@ -59,7 +60,6 @@ module.exports = function (RED) {
             if (node.modbusconn) {
                 log('already connected to modbustcp slave at ' + config.host + ':' + config.port);
                 if (handler && (typeof handler === 'function')){
-                    log(handler);
                     handler(node.modbusconn);
                 }
                 return node.modbusconn;
@@ -74,6 +74,7 @@ module.exports = function (RED) {
                 log('ModbusTCP: successfully connected to ' + config.host + ':' + config.port);
             });
             node.modbusconn.connect();
+
             if (handler && (typeof handler === 'function'))
                 handler(node.modbusconn);
             return node.modbusconn;
@@ -94,7 +95,7 @@ module.exports = function (RED) {
      * =======================================
      */
     function ModbusTCPOut(config) {
-        log('new ModbusTCP-OUT, config: %j', config);
+        //log('new ModbusTCP-OUT, config: %j', config);
         RED.nodes.createNode(this, config);
         this.name = config.name;
         this.dataType = config.dataType;
@@ -134,28 +135,51 @@ module.exports = function (RED) {
     RED.nodes.registerType("modbustcp-out", ModbusTCPOut);
 
     function ModbusTCPIn(config) {
-        log('new ModbusTCP-IN, config: %j', config);
+        //log('new ModbusTCP-IN, config: %j', config);
         RED.nodes.createNode(this, config);
         this.name = config.name;
         this.dataType = config.dataType;
         this.adr = config.adr;
+        this.connection = null;
         var node = this;
         var modbusTCPController = RED.nodes.getNode(config.controller);
 
-        /* ===== Node-Red events ===== */
-        this.on("close", function () {
-        });
         /* ===== modbustcp events ===== */
         // initialize incoming modbustcp event socket
         // there's only one connection for modbustcp-in:
         modbusTCPController.initializeModbusTCPConnection(function(connection){
-            connection.on('Data.' + node.dataType + '.' + node.adr, function(val){
+
+            node.receiveEvent = function(val){
                 log('modbustcp event: Data.' + node.dataType + '.' + node.adr + '=' + val);
                 node.send({
                     topic: 'modbustcp:event',
                     payload: val
                 });
-            });
+            }
+
+            node.connection = connection;
+            node.connection.on('Data.' + node.dataType + '.' + node.adr, node.receiveEvent);
+
+            switch (node.dataType){
+                case "Coil":
+                    node.connection.addPollingCoils(+node.adr);
+                    break;
+                case "Input":
+                    node.connection.addPollingInputs(+node.adr);
+                    break;
+                case "HoldingRegister":
+                    node.connection.addPollingHoldingRegisters(+node.adr);
+                    break;
+                case "InputRegister":
+                    node.connection.addPollingInputRegisters(+node.adr);
+                    break;
+            }
+        });
+
+        /* ===== Node-Red events ===== */
+        this.on("close", function () {
+            if (node.connection && node.receiveEvent)
+                node.connection.off('Data.' + node.dataType + '.' + node.adr, node.receiveEvent);
         });
 
     }
