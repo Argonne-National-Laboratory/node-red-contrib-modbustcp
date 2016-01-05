@@ -1,31 +1,29 @@
 {
   "name": "node-red-contrib-modbus",
-  "version": "0.2.3",
-  "description": "A Node-RED node to communicate MODBUS TCP. Uses node jsmodbus library.",
+  "version": "0.3.0",
+  "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
+  "main": "modbustcp.js",
+  "dependencies": {
+    "jsmodbus": "^0.5.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \\\"Error: no test specified\\\" && exit 1"
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/estbeetoo/node-red-contrib-modbus.git"
+    "url": "git+https://github.com/jayharper/node-red-contrib-modbus.git"
   },
   "keywords": [
     "node-red",
-    "modbus tcp"
+    "modbus",
+    "modbus tcp",
+    "modbus client"    
   ],
-  "author": {
-    "name": "Yury Kornilov",
-    "email": "kornilovyv81@gmail.com"
-  },
-  "license": "Apache",
+  "author": "Jason D. Harper",
+  "license": "BSD-3-Clause",
   "bugs": {
-    "url": "https://github.com/estbeetoo/node-red-contrib-modbus/issues"
+    "url": "https://github.com/jayharper/node-red-contrib-modbus/issues"
   },
-  "node-red": {
-    "nodes": {
-      "modbus tcp": "modbustcp.js"
-    }
-  },
-  "dependencies": {
-    "jsmodbus": "https://github.com/estbeetoo/jsModbus.git"
-  },
-  "homepage": "https://github.com/estbeetoo/node-red-contrib-modbus#readme",
-  "scripts": {}
+  "homepage": "https://github.com/jayharper/node-red-contrib-modbus#readme"
 }
