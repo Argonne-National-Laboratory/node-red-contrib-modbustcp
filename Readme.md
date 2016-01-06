@@ -1,31 +1,23 @@
-node-red-contrib-bmp085
+node-red-contrib-modbus
 ========================
 
-A <a href="http://nodered.org" target="_new">Node-RED</a> node to communicate [MODBUS TCP](https://www.npmjs.com/package/node-modbus).
+[![NPM](https://nodei.co/npm/node-red-contrib-modbus.png)](https://nodei.co/npm/node-red-contrib-modbus/)
 
-Install
--------
+[Node-Red][1] Modbus TCP nodes for communicating with a Modbus TCP server.
 
-Run command on Node-RED installation directory
+Based on [jsmodbus][2].
 
-	npm install node-red-contrib-modbus
+#Install
 
-Pre-reqs
---------
+Run the following command in the root directory of your Node-RED install
 
-Install first node-jsmodbus. NOTE: Modified files included here, but still some problems with function codes 15 and 16.
-Tested with python modbus server (more testing needed for error handling etc.).
+    npm install node-red-contrib-modbus
 
-Usage
------
+#Author
 
-Use Function node to define msg.fc (function code) and other needed parameters.
-Then connect it to modbus-client node that will connect to modbus server.
+[Jason D. Harper][3] 
 
-![node-red-modbus-flow] (example.png)
 
-Example Node-RED flow, see MODBUS_TEST.json
-
-[
-    TODO paste here
-]
+[1]:http://nodered.org
+[2]:https://www.npmjs.com/package/jsmodbus
+[3]:https://github.com/jayharper

@@ -189,7 +189,8 @@ module.exports = function (RED) {
             node.connection.on('connect', node.receiveEvent2);
 
             function ModbusMaster() {
-                var msg = {};                
+                var msg = {};  
+                msg.topic = node.name;              
                 if(node.connection.isConnected())
                 {          
                     switch (node.dataType){
