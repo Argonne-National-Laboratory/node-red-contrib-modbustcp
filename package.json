@@ -20,6 +20,11 @@
     "modbus tcp",
     "modbus client"    
   ],
+  "node-red": {
+    "nodes": {
+      "modbus tcp": "modbustcp.js"
+    }
+  },
   "author": "Jason D. Harper",
   "license": "BSD-3-Clause",
   "bugs": {
