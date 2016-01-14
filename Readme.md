@@ -1,7 +1,7 @@
-node-red-contrib-modbus
+node-red-contrib-modbustcp
 ========================
 
-[![NPM](https://nodei.co/npm/node-red-contrib-modbus.png)](https://nodei.co/npm/node-red-contrib-modbus/)
+[![NPM](https://nodei.co/npm/node-red-contrib-modbustcp.png)](https://nodei.co/npm/node-red-contrib-modbustcp/)
 
 [Node-Red][1] Modbus TCP nodes for communicating with a Modbus TCP server.
 
@@ -11,11 +11,11 @@ Based on [jsmodbus][2].
 
 Run the following command in the root directory of your Node-RED install
 
-    npm install node-red-contrib-modbus
+    npm install node-red-contrib-modbustcp
 
 #Nodes
-![alt tag](https://raw.githubusercontent.com/jayharper/node-red-contrib-modbus/master/modbustcp-read.png)
-![alt tag](https://raw.githubusercontent.com/jayharper/node-red-contrib-modbus/master/modbustcp-write.png)
+![alt tag](https://raw.githubusercontent.com/Argonne-National-Laboratory/node-red-contrib-modbustcp/master/modbustcp-read.png)
+![alt tag](https://raw.githubusercontent.com/Argonne-National-Laboratory/node-red-contrib-modbustcp/master/modbustcp-write.png)
 
 #Author
 
