@@ -140,7 +140,7 @@ module.exports = function (RED) {
         }
 
         function set_unconnected_waiting() {
-            node.status({fill: "blue", shape: "dot", text: "polling rate:" + node.rate + node.rateUnit});
+            node.status({fill: "blue", shape: "dot", text: "not connected waiting"});
         }
 
         function set_modbus_error(err) {
