@@ -61,33 +61,24 @@ module.exports = function (RED) {
         node.initializeModbusTCPConnection = function (handler) {
 
             if (node.modbusconn && node.modbusconn.isConnected()) {
-                if (handler && (typeof handler === 'function')) {
-                    // attention hanlders can become memory leaking by requesting them ever and ever
-                    // handlers are resources they have to be closed before you use a new handler
-                    handler(node.modbusconn);
-                }
-                return node.modbusconn;
+                console.log('Connected to modbustcp slave at ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+            }
+            else {
+                console.log('Connecting to modbustcp slave at ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+
+                node.modbusconn = null;
+                node.modbusconn = modbus.createTCPClient(config.port, config.host, Number(config.unit_id),
+                    function (err) {
+                        if (err) {
+                            node.error('ModbusTCPConnection: ' + util.inspect(err, false, null));
+                            return null;
+                        }
+                        console.log('ModbusTCP Server connected ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+                        node.warn("MODBUS TCP Server connected " + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+                    });
             }
 
-            log('Connecting to modbustcp slave at ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
-
-            node.modbusconn = null;
-            node.modbusconn = modbus.createTCPClient(config.port, config.host, Number(config.unit_id),
-                function (err) {
-                    if (err) {
-                        node.error('ModbusTCPConnection: ' + util.inspect(err, false, null));
-                        return null;
-                    }
-                    console.log('ModbusTCP Server connected ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
-                    node.warn("MODBUS TCP Server connected " + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
-                });
-
-            if (handler && (typeof handler === 'function')) {
-                handler(node.modbusconn);
-            }
-
-            return node.modbusconn;
-
+            handler(node.modbusconn);
         };
 
         node.on("close", function () {
@@ -97,6 +88,11 @@ module.exports = function (RED) {
 
             if (node.modbusconn && node.modbusconn.isConnected()) {
                 node.modbusconn.close();
+                node.modbusconn = null;
+                console.log("MODBUS TCP Server closed");
+                node.warn("MODBUS TCP Server closed");
+            }
+            else {
                 node.modbusconn = null;
                 console.log("MODBUS TCP Server closed");
                 node.warn("MODBUS TCP Server closed");
@@ -124,14 +120,14 @@ module.exports = function (RED) {
 
             node.connection = connection;
 
-            node.receiveEvent1 = function () {
+            node.receiveEventCloseWrite = function () {
                 if (!node.connection.isConnected()) {
                     console.log('Modbus TCP for writing is not connected');
                     set_unconnected_waiting();
                 }
             };
 
-            node.connection.on('close', node.receiveEvent1);
+            node.connection.on('close', node.receiveEventCloseWrite);
 
         });
 
@@ -140,7 +136,7 @@ module.exports = function (RED) {
         }
 
         function set_unconnected_waiting() {
-            node.status({fill: "blue", shape: "dot", text: "not connected waiting"});
+            node.status({fill: "blue", shape: "dot", text: "waiting ..."});
         }
 
         function set_modbus_error(err) {
@@ -213,7 +209,6 @@ module.exports = function (RED) {
                                 }
                             });
                         }
-
                         break;
 
                     default:
@@ -251,19 +246,14 @@ module.exports = function (RED) {
 
         modbusTCPServer.initializeModbusTCPConnection(function (connection) {
 
-            node.receiveEvent1 = function () {
-                if (!node.connection.isConnected()) {
-                    console.log('Modbus TCP for reading is not connected');
-                    set_unconnected_waiting();
-                }
-            };
+            node.connection = connection;
 
             function set_connected_waiting() {
                 node.status({fill: "green", shape: "dot", text: "polling rate:" + node.rate + node.rateUnit});
             }
 
             function set_unconnected_waiting() {
-                node.status({fill: "blue", shape: "dot", text: "polling rate:" + node.rate + node.rateUnit});
+                node.status({fill: "blue", shape: "dot", text: "waiting ..."});
             }
 
             function set_connected_polling() {
@@ -279,15 +269,6 @@ module.exports = function (RED) {
                 }
                 return true;
             }
-
-            node.receiveEvent2 = function () {
-                set_connected_waiting();
-                ModbusMaster(); // fire once at start and then by it's fired by the timer event - setInterval
-                timerID = setInterval(function () {
-                    ModbusMaster();
-                }, calc_rateByUnit());
-            };
-
 
             function calc_rateByUnit() {
 
@@ -313,9 +294,27 @@ module.exports = function (RED) {
                 return rate;
             }
 
-            node.connection = connection;
-            node.connection.on('close', node.receiveEvent1);
-            node.connection.on('connect', node.receiveEvent2);
+            node.receiveEventCloseRead = function () {
+                if (node.connection && !node.connection.isConnected()) {
+                    console.log('Modbus TCP for reading is not connected');
+                    set_unconnected_waiting();
+                }
+                else {
+                    if (node.connection == null)
+                        node.status({fill: "grey", shape: "dot", text: "Disconnected"});
+                }
+            };
+
+            node.receiveEventConnectRead = function () {
+                set_connected_waiting();
+                ModbusMaster(); // fire once at start and then by it's fired by the timer event - setInterval
+                timerID = setInterval(function () {
+                    ModbusMaster();
+                }, calc_rateByUnit());
+            };
+
+            node.connection.on('close', node.receiveEventCloseRead);
+            node.connection.on('connect', node.receiveEventConnectRead);
 
             function ModbusMaster() {
 
@@ -368,12 +367,13 @@ module.exports = function (RED) {
                     }
                 }
                 else {
-                    console.log('No Modbus TCP Server Connection Detected, Initiating....');
+                    node.warn('No Modbus TCP Server connection detected on read, Initiating....');
                     clearInterval(timerID);
-
-                    node.connection = modbusTCPServer.initializeModbusTCPConnection();
-                    node.connection.on('close', node.receiveEvent1);
-                    node.connection.on('connect', node.receiveEvent2);
+                    modbusTCPServer.initializeModbusTCPConnection(function (connection) {
+                        node.connection = connection;
+                        node.connection.on('close', node.receiveEventCloseRead);
+                        node.connection.on('connect', node.receiveEventConnectRead);
+                    });
                     set_unconnected_waiting();
                 }
             }
