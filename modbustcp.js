@@ -295,13 +295,14 @@ module.exports = function (RED) {
             }
 
             node.receiveEventCloseRead = function () {
-                if (node.connection && !node.connection.isConnected()) {
+                if (!node.connection.isConnected()) {
                     console.log('Modbus TCP for reading is not connected');
                     set_unconnected_waiting();
                 }
                 else {
-                    if (node.connection == null)
+                    if (!node.connection) {
                         node.status({fill: "grey", shape: "dot", text: "Disconnected"});
+                    }
                 }
             };
 
