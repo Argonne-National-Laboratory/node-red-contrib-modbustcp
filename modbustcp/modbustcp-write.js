@@ -60,6 +60,8 @@ module.exports = function (RED) {
             return [{payload: values}, {payload: util.inspect(response, false, null)}]
         }
 
+        set_node_status_to("waiting");
+
         function set_node_status_to(statusValue) {
 
             verbose_log("write status: " + statusValue);

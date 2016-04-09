@@ -64,6 +64,8 @@ module.exports = function (RED) {
             return [{payload: values}, {payload: util.inspect(response, false, null)}]
         }
 
+        set_node_status_to("waiting");
+
         function set_node_status_to(statusValue) {
 
             verbose_log("write status: " + statusValue);
@@ -148,8 +150,7 @@ module.exports = function (RED) {
 
             node.receiveEventCloseRead = function () {
                 if (!node.connection.isConnected()) {
-                    verbose_log('for reading is not connected');
-                    set_node_status_to("closed");
+                    set_node_status_to("waiting");
                 }
                 else {
                     if (!node.connection) {
@@ -231,6 +232,17 @@ module.exports = function (RED) {
                 }
             }
 
+        });
+
+        node.on("initialize", function () {
+            verbose_warn("read initialize");
+            set_node_status_to("initialized");
+        });
+
+
+        node.on("connect", function () {
+            verbose_warn("read connect");
+            set_node_status_to("connecting");
         });
 
         node.on("close", function () {
