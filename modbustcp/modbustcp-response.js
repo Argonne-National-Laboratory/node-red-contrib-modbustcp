@@ -29,7 +29,7 @@
  **/
 
 module.exports = function (RED) {
-
+    "use strict";
     var util = require('util');
 
     function ModbusTCPResponse(config) {

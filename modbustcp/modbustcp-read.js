@@ -29,8 +29,7 @@
  **/
 
 module.exports = function (RED) {
-
-    var modbus = require('jsmodbus');
+    "use strict";
     var util = require('util');
 
     function ModbusTCPRead(config) {
@@ -91,6 +90,11 @@ module.exports = function (RED) {
                 case "terminated":
                     fillValue = "red";
                     shapeValue = "ring";
+                    break;
+
+                case "polling":
+                    fillValue = "yellow";
+                    shapeValue = "dot";
                     break;
 
                 default:
@@ -175,7 +179,7 @@ module.exports = function (RED) {
 
                     switch (node.dataType) {
                         case "Coil": //FC: 1
-                            set_connected_polling();
+                            set_node_status_to("polling");
                             node.connection.readCoils(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
@@ -184,7 +188,7 @@ module.exports = function (RED) {
                             });
                             break;
                         case "Input": //FC: 2
-                            set_connected_polling();
+                            set_node_status_to("polling");
                             node.connection.readDiscreteInput(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
@@ -193,7 +197,7 @@ module.exports = function (RED) {
                             });
                             break;
                         case "HoldingRegister": //FC: 3
-                            node.status({fill: "yellow", shape: "dot", text: "Polling"});
+                            set_node_status_to("polling");
                             node.connection.readHoldingRegister(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
@@ -201,8 +205,8 @@ module.exports = function (RED) {
                                 }
                             });
                             break;
-                        case "InputRegister": //FC: 4                        
-                            node.status({fill: "yellow", shape: "dot", text: "Polling"});
+                        case "InputRegister": //FC: 4
+                            set_node_status_to("polling");
                             node.connection.readInputRegister(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);

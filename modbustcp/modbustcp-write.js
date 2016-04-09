@@ -29,8 +29,7 @@
  **/
 
 module.exports = function (RED) {
-
-    var modbus = require('jsmodbus');
+    "use strict";
     var util = require('util');
 
     function ModbusTCPWrite(config) {

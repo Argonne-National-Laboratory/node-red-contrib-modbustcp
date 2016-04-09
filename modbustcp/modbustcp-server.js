@@ -29,7 +29,7 @@
  **/
 
 module.exports = function (RED) {
-
+    "use strict";
     var modbus = require('jsmodbus');
     var util = require('util');
 
