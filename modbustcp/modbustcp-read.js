@@ -61,7 +61,11 @@ module.exports = function (RED) {
             }
         }
 
-        function set_node_status_to(statusValue, response) {
+        function build_message(values, response) {
+            return [{payload: values}, {payload: util.inspect(response, false, null)}]
+        }
+
+        function set_node_status_to(statusValue) {
 
             verbose_log("write status: " + statusValue);
 
@@ -97,15 +101,7 @@ module.exports = function (RED) {
                     break;
             }
 
-            if (response && RED.settings.verbose) {
-                node.status({
-                    fill: fillValue,
-                    shape: shapeValue,
-                    text: statusValue + " " + util.inspect(response, false, null)
-                });
-            } else {
-                node.status({fill: fillValue, shape: shapeValue, text: statusValue});
-            }
+            node.status({fill: fillValue, shape: shapeValue, text: statusValue});
         }
 
         modbusTCPServer.initializeModbusTCPConnection(function (connection) {
@@ -169,6 +165,7 @@ module.exports = function (RED) {
             node.connection.on('close', node.receiveEventCloseRead);
             node.connection.on('connect', node.receiveEventConnectRead);
 
+
             function ModbusMaster() {
 
                 var msg = {};
@@ -182,8 +179,7 @@ module.exports = function (RED) {
                             node.connection.readCoils(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
-                                    msg.payload = resp.coils; // array of coil values
-                                    node.send(msg);
+                                    node.send(build_message(resp.coils, resp));
                                 }
                             });
                             break;
@@ -192,8 +188,7 @@ module.exports = function (RED) {
                             node.connection.readDiscreteInput(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
-                                    msg.payload = resp.coils; // array of discrete input values
-                                    node.send(msg);
+                                    node.send(build_message(resp.coils, resp));
                                 }
                             });
                             break;
@@ -202,8 +197,7 @@ module.exports = function (RED) {
                             node.connection.readHoldingRegister(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
-                                    msg.payload = resp.register; // array of register values
-                                    node.send(msg);
+                                    node.send(build_message(resp.register, resp));
                                 }
                             });
                             break;
@@ -212,8 +206,7 @@ module.exports = function (RED) {
                             node.connection.readInputRegister(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active reading", resp);
-                                    msg.payload = resp.register; // array of register values
-                                    node.send(msg);
+                                    node.send(build_message(resp.register, resp));
                                 }
                             });
                             break;

@@ -51,11 +51,11 @@
             server: {value: "", type: "modbustcp-server"}
         },
         inputs: 0,
-        outputs: 1,
+        outputs: 2,
         icon: "modbus-icon.png",
-        paletteLabel: "modbustcp",
+        paletteLabel: "ModbusTCP-Read",
         label: function () {
-            return (this.name || "modbustcp");
+            return this.name || "ModbusTCP Read";
         }
     });
 </script>
@@ -112,5 +112,8 @@
         </ul>
      Choose a function code (FC) from the dropdown menu, select the coil/input/register start address (0:65535), and the quantity of coils/inputs/registers to be read from the start address.  Input a poll rate (greater than zero) in seconds to setup the poll rate.  Choose or edit the Modbus TCP server configuration.
      <br><br>
+
+     <p>Output 1: data Array</p>
+     <p>Output 2: response from modbus</p>
 
 </script>

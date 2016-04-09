@@ -41,12 +41,12 @@
             server: {value: "", type: "modbustcp-server"}
         },
         inputs: 1,
-        outputs: 0,
+        outputs: 2,
         icon: "modbus-icon.png",
         align: 'right',
-        paletteLabel: "modbustcp",
+        paletteLabel: "ModbusTCP-Write",
         label: function () {
-            return (this.name || "ModbusTCP Write");
+            return this.name || "ModbusTCP Write";
         }
     });
 </script>
@@ -91,5 +91,8 @@
      <br><br>
     For FC 5, <b>msg.payload</b> must be a number or string value of 0 or 1.  For FC 6, <b>msg.payload</b> must be a number or string value between 0:65535.
      </p>
+
+     <p>Output 1: given data Array</p>
+     <p>Output 2: response from modbus</p>
 
 </script>

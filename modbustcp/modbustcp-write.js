@@ -57,7 +57,11 @@ module.exports = function (RED) {
             }
         }
 
-        function set_node_status_to(statusValue, response) {
+        function build_message(values, response) {
+            return [{payload: values}, {payload: util.inspect(response, false, null)}]
+        }
+
+        function set_node_status_to(statusValue) {
 
             verbose_log("write status: " + statusValue);
 
@@ -93,15 +97,7 @@ module.exports = function (RED) {
                     break;
             }
 
-            if (response && RED.settings.verbose) {
-                node.status({
-                    fill: fillValue,
-                    shape: shapeValue,
-                    text: statusValue + " " + util.inspect(response, false, null)
-                });
-            } else {
-                node.status({fill: fillValue, shape: shapeValue, text: statusValue});
-            }
+            node.status({fill: fillValue, shape: shapeValue, text: statusValue});
         }
 
         modbusTCPServer.initializeModbusTCPConnection(function (connection) {
@@ -164,6 +160,7 @@ module.exports = function (RED) {
                                 node.connection.writeSingleCoil(i, msg.payload[i], function (resp, err) {
                                     if (set_modbus_error(err) && resp) {
                                         set_node_status_to("active writing", resp);
+                                        node.send(build_message(msg.payload[i], resp));
                                     }
                                 });
                             }
@@ -171,6 +168,7 @@ module.exports = function (RED) {
                             node.connection.writeSingleCoil(node.adr, msg.payload, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active writing", resp);
+                                    node.send(build_message(msg.payload, resp));
                                 }
                             });
                         }
@@ -186,6 +184,7 @@ module.exports = function (RED) {
                                 node.connection.writeSingleRegister(i, Number(msg.payload[i]), function (resp, err) {
                                     if (set_modbus_error(err) && resp) {
                                         set_node_status_to("active writing", resp);
+                                        node.send(build_message(msg.payload[i], resp));
                                     }
                                 });
                             }
@@ -193,6 +192,7 @@ module.exports = function (RED) {
                             node.connection.writeSingleRegister(node.adr, Number(msg.payload), function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
                                     set_node_status_to("active writing", resp);
+                                    node.send(build_message(Number(msg.payload), resp));
                                 }
                             });
                         }
