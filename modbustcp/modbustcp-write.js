@@ -57,14 +57,67 @@ module.exports = function (RED) {
             }
         }
 
+        function set_node_status_to(statusValue, response) {
+
+            verbose_log("write status: " + statusValue);
+
+            var fillValue = "red";
+            var shapeValue = "dot";
+
+            switch (statusValue) {
+
+                case "connecting":
+                case "connected":
+                case "initialized":
+                    fillValue = "green";
+                    shapeValue = "ring";
+                    break;
+
+                case "active":
+                case "active writing":
+                    fillValue = "green";
+                    shapeValue = "dot";
+                    break;
+
+                case "disconnected":
+                case "terminated":
+                    fillValue = "red";
+                    shapeValue = "ring";
+                    break;
+
+                default:
+                    if (!statusValue || statusValue == "waiting") {
+                        fillValue = "blue";
+                        statusValue = "waiting ...";
+                    }
+                    break;
+            }
+
+            if (response && RED.settings.verbose) {
+                node.status({
+                    fill: fillValue,
+                    shape: shapeValue,
+                    text: statusValue + " " + util.inspect(response, false, null)
+                });
+            } else {
+                node.status({fill: fillValue, shape: shapeValue, text: statusValue});
+            }
+        }
+
         modbusTCPServer.initializeModbusTCPConnection(function (connection) {
+
+            set_node_status_to("initialized");
 
             node.connection = connection;
 
             node.receiveEventCloseWrite = function () {
                 if (!node.connection.isConnected()) {
                     verbose_log('for writing is not connected');
-                    set_unconnected_waiting();
+                    set_node_status_to("closed");
+                } else {
+                    if (!node.connection) {
+                        set_node_status_to("disconnected");
+                    }
                 }
             };
 
@@ -72,17 +125,9 @@ module.exports = function (RED) {
 
         });
 
-        function set_connected_written(resp) {
-            node.status({fill: "green", shape: "dot", text: util.inspect(resp, false, null)});
-        }
-
-        function set_unconnected_waiting() {
-            node.status({fill: "blue", shape: "dot", text: "waiting ..."});
-        }
-
         function set_modbus_error(err) {
             if (err) {
-                node.status({fill: "red", shape: "dot", text: "Error"});
+                set_node_status_to("error");
                 verbose_log(err);
                 node.error('ModbusTCPClient: ' + JSON.stringify(err));
                 return false;
@@ -95,6 +140,7 @@ module.exports = function (RED) {
                 if (!(msg && msg.hasOwnProperty('payload'))) return;
 
                 if (msg.payload == null) {
+                    set_node_status_to("payload error");
                     node.error('ModbusTCPWrite: Invalid msg.payload!');
                     return;
                 }
@@ -102,7 +148,7 @@ module.exports = function (RED) {
                 node.status(null);
 
                 if (!node.connection.isConnected()) {
-                    set_unconnected_waiting();
+                    set_node_status_to("waiting");
                     return;
                 }
 
@@ -117,14 +163,14 @@ module.exports = function (RED) {
 
                                 node.connection.writeSingleCoil(i, msg.payload[i], function (resp, err) {
                                     if (set_modbus_error(err) && resp) {
-                                        set_connected_written(resp);
+                                        set_node_status_to("active writing", resp);
                                     }
                                 });
                             }
                         } else {
                             node.connection.writeSingleCoil(node.adr, msg.payload, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_connected_written(resp);
+                                    set_node_status_to("active writing", resp);
                                 }
                             });
                         }
@@ -139,14 +185,14 @@ module.exports = function (RED) {
                             for (i = node.adr; i < node.quantity; i++) {
                                 node.connection.writeSingleRegister(i, Number(msg.payload[i]), function (resp, err) {
                                     if (set_modbus_error(err) && resp) {
-                                        set_connected_written(resp);
+                                        set_node_status_to("active writing", resp);
                                     }
                                 });
                             }
                         } else {
                             node.connection.writeSingleRegister(node.adr, Number(msg.payload), function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_connected_written(resp);
+                                    set_node_status_to("active writing", resp);
                                 }
                             });
                         }
@@ -160,7 +206,7 @@ module.exports = function (RED) {
 
         node.on("close", function () {
             verbose_warn("write close");
-            node.status({fill: "grey", shape: "dot", text: "Disconnected"});
+            set_node_status_to("closed");
         });
     }
 

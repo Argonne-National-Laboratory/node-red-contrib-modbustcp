@@ -19,6 +19,7 @@
   ],
   "node-red": {
     "nodes": {
+      "ModbusTCP-Server": "modbustcp/modbustcp-server.js",
       "ModbusTCP-Read": "modbustcp/modbustcp-read.js",
       "ModbusTCP-Write": "modbustcp/modbustcp-write.js"
     }

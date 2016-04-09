@@ -61,25 +61,60 @@ module.exports = function (RED) {
             }
         }
 
+        function set_node_status_to(statusValue, response) {
+
+            verbose_log("write status: " + statusValue);
+
+            var fillValue = "red";
+            var shapeValue = "dot";
+
+            switch (statusValue) {
+
+                case "connecting":
+                case "connected":
+                case "initialized":
+                    fillValue = "green";
+                    shapeValue = "ring";
+                    break;
+
+                case "active":
+                case "active reading":
+                    fillValue = "green";
+                    shapeValue = "dot";
+                    break;
+
+                case "disconnected":
+                case "terminated":
+                    fillValue = "red";
+                    shapeValue = "ring";
+                    break;
+
+                default:
+                    if (!statusValue || statusValue == "waiting") {
+                        fillValue = "blue";
+                        statusValue = "waiting ...";
+                    }
+                    break;
+            }
+
+            if (response && RED.settings.verbose) {
+                node.status({
+                    fill: fillValue,
+                    shape: shapeValue,
+                    text: statusValue + " " + util.inspect(response, false, null)
+                });
+            } else {
+                node.status({fill: fillValue, shape: shapeValue, text: statusValue});
+            }
+        }
+
         modbusTCPServer.initializeModbusTCPConnection(function (connection) {
 
             node.connection = connection;
 
-            function set_connected_waiting() {
-                node.status({fill: "green", shape: "dot", text: "polling rate:" + node.rate + node.rateUnit});
-            }
-
-            function set_unconnected_waiting() {
-                node.status({fill: "blue", shape: "dot", text: "waiting ..."});
-            }
-
-            function set_connected_polling() {
-                node.status({fill: "yellow", shape: "dot", text: "polling from Modbus"});
-            }
-
             function set_modbus_error(err) {
                 if (err) {
-                    node.status({fill: "red", shape: "dot", text: "Error"});
+                    set_node_status_to("error");
                     verbose_log(err);
                     node.error('ModbusTCPClient: ' + JSON.stringify(err));
                     return false;
@@ -114,17 +149,17 @@ module.exports = function (RED) {
             node.receiveEventCloseRead = function () {
                 if (!node.connection.isConnected()) {
                     verbose_log('for reading is not connected');
-                    set_unconnected_waiting();
+                    set_node_status_to("closed");
                 }
                 else {
                     if (!node.connection) {
-                        node.status({fill: "grey", shape: "dot", text: "Disconnected"});
+                        set_node_status_to("disconnected");
                     }
                 }
             };
 
             node.receiveEventConnectRead = function () {
-                set_connected_waiting();
+                set_node_status_to("connecting");
                 ModbusMaster(); // fire once at start and then by it's fired by the timer event - setInterval
                 timerID = setInterval(function () {
                     ModbusMaster();
@@ -146,7 +181,7 @@ module.exports = function (RED) {
                             set_connected_polling();
                             node.connection.readCoils(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_connected_waiting();
+                                    set_node_status_to("active reading", resp);
                                     msg.payload = resp.coils; // array of coil values
                                     node.send(msg);
                                 }
@@ -156,7 +191,7 @@ module.exports = function (RED) {
                             set_connected_polling();
                             node.connection.readDiscreteInput(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_connected_waiting();
+                                    set_node_status_to("active reading", resp);
                                     msg.payload = resp.coils; // array of discrete input values
                                     node.send(msg);
                                 }
@@ -166,7 +201,7 @@ module.exports = function (RED) {
                             node.status({fill: "yellow", shape: "dot", text: "Polling"});
                             node.connection.readHoldingRegister(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_connected_waiting();
+                                    set_node_status_to("active reading", resp);
                                     msg.payload = resp.register; // array of register values
                                     node.send(msg);
                                 }
@@ -176,7 +211,7 @@ module.exports = function (RED) {
                             node.status({fill: "yellow", shape: "dot", text: "Polling"});
                             node.connection.readInputRegister(node.adr, node.quantity, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_connected_waiting();
+                                    set_node_status_to("active reading", resp);
                                     msg.payload = resp.register; // array of register values
                                     node.send(msg);
                                 }
@@ -187,12 +222,15 @@ module.exports = function (RED) {
                 else {
                     verbose_warn('No Server connection detected on read, Initiating....');
                     clearInterval(timerID);
+
+                    set_node_status_to("waiting");
+
                     modbusTCPServer.initializeModbusTCPConnection(function (connection) {
+                        set_node_status_to("initialized");
                         node.connection = connection;
                         node.connection.on('close', node.receiveEventCloseRead);
                         node.connection.on('connect', node.receiveEventConnectRead);
                     });
-                    set_unconnected_waiting();
                 }
             }
 
@@ -201,7 +239,7 @@ module.exports = function (RED) {
         node.on("close", function () {
             verbose_warn("read close");
             clearInterval(timerID);
-            node.status({fill: "grey", shape: "dot", text: "Disconnected"});
+            set_node_status_to("closed");
         });
     }
 
