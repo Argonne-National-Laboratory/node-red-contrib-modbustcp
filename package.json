@@ -1,14 +1,9 @@
 {
   "name": "node-red-contrib-modbustcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
-  "main": "modbustcp.js",
   "dependencies": {
     "jsmodbus": "^0.5.0"
-  },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \\\"Error: no test specified\\\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -18,11 +13,14 @@
     "node-red",
     "modbus",
     "modbus tcp",
-    "modbus client"    
+    "modbustcp",
+    "modbus read",
+    "modbus write"
   ],
   "node-red": {
     "nodes": {
-      "modbus tcp": "modbustcp.js"
+      "ModbusTCP-Read": "modbustcp/modbustcp-read.js",
+      "ModbusTCP-Write": "modbustcp/modbustcp-write.js"
     }
   },
   "author": "Jason D. Harper",
@@ -30,5 +28,8 @@
   "bugs": {
     "url": "https://github.com/Argonne-National-Laboratory/node-red-contrib-modbustcp/issues"
   },
-  "homepage": "https://github.com/Argonne-National-Laboratory/node-red-contrib-modbustcp#readme"
+  "homepage": "https://github.com/Argonne-National-Laboratory/node-red-contrib-modbustcp#readme",
+  "scripts": {
+    "test": "karma start modbustcp.conf.js --log-level debug --single-run"
+  }
 }
