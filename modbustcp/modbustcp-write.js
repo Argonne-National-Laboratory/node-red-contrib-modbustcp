@@ -160,7 +160,7 @@ module.exports = function (RED) {
 
                                 node.connection.writeSingleCoil(i, msg.payload[i], function (resp, err) {
                                     if (set_modbus_error(err) && resp) {
-                                        set_node_status_to("active writing", resp);
+                                        set_node_status_to("active writing");
                                         node.send(build_message(msg.payload[i], resp));
                                     }
                                 });
@@ -168,7 +168,7 @@ module.exports = function (RED) {
                         } else {
                             node.connection.writeSingleCoil(node.adr, msg.payload, function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_node_status_to("active writing", resp);
+                                    set_node_status_to("active writing");
                                     node.send(build_message(msg.payload, resp));
                                 }
                             });
@@ -184,7 +184,7 @@ module.exports = function (RED) {
                             for (i = node.adr; i < node.quantity; i++) {
                                 node.connection.writeSingleRegister(i, Number(msg.payload[i]), function (resp, err) {
                                     if (set_modbus_error(err) && resp) {
-                                        set_node_status_to("active writing", resp);
+                                        set_node_status_to("active writing");
                                         node.send(build_message(msg.payload[i], resp));
                                     }
                                 });
@@ -192,7 +192,7 @@ module.exports = function (RED) {
                         } else {
                             node.connection.writeSingleRegister(node.adr, Number(msg.payload), function (resp, err) {
                                 if (set_modbus_error(err) && resp) {
-                                    set_node_status_to("active writing", resp);
+                                    set_node_status_to("active writing");
                                     node.send(build_message(Number(msg.payload), resp));
                                 }
                             });
@@ -208,6 +208,8 @@ module.exports = function (RED) {
         node.on("close", function () {
             verbose_warn("write close");
             set_node_status_to("closed");
+            node.connection.removeAllListeners();
+            node = null;
         });
     }
 
