@@ -61,7 +61,7 @@ module.exports = function (RED) {
         }
 
         function build_message(values, response) {
-            return [{payload: values}, {payload: util.inspect(response, false, null)}]
+            return [{payload: values}, {payload: response}]
         }
 
         set_node_status_to("waiting");
@@ -277,7 +277,10 @@ module.exports = function (RED) {
             verbose_warn("read close");
             clearInterval(timerID);
             set_node_status_to("closed");
-            node.connection.removeAllListeners();
+            if (node.connection) {
+                node.connection.removeListener('connect');
+                node.connection.removeListener('close');
+            }
             node = null;
         });
     }

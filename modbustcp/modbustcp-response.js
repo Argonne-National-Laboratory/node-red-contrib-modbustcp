@@ -36,6 +36,8 @@ module.exports = function (RED) {
 
         RED.nodes.createNode(this, config);
 
+        this.registerShowMax = config.registerShowMax;
+
         var node = this;
 
         set_node_status_to("initialized");
@@ -79,11 +81,21 @@ module.exports = function (RED) {
                     break;
             }
 
-            node.status({fill: fillValue, shape: shapeValue, text: response});
+            node.status({fill: fillValue, shape: shapeValue, text: util.inspect(response, false, null)});
         }
 
         node.on("input", function (msg) {
-            set_node_status_to("active", msg.payload);
+
+            if (msg.payload.register.length > node.registerShowMax) {
+
+                node.status({
+                    fill: 'green',
+                    shape: 'dot',
+                    text: 'fc: ' + msg.payload.fc + ' byteCount: ' + msg.payload.byteCount + ' registerCount: ' + msg.payload.register.length
+                });
+            } else {
+                set_node_status_to("active", msg.payload);
+            }
         });
 
         node.on("close", function () {

@@ -34,7 +34,8 @@
         category: 'modbus',
         color: '#E9967A',
         defaults: {
-            name: {value: ""}
+            name: {value: ""},
+            registerShowMax: {value: 20, validate: RED.validators.number()}
         },
         inputs: 1,
         outputs: 0,
@@ -52,7 +53,10 @@
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-
+    <div class="form-row">
+        <label for="node-input-registerShowMax"><i class="fa fa-th"></i> Show-Max-Regsiter</label>
+        <input type="text" id="node-input-registerShowMax" placeholder="register to show max.">
+    </div>
 </script>
 
 
