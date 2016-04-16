@@ -14,8 +14,8 @@ Run the following command in the root directory of your Node-RED install
     npm install node-red-contrib-modbustcp
 
 #Nodes
-![alt tag](https://raw.githubusercontent.com/Argonne-National-Laboratory/node-red-contrib-modbustcp/master/modbustcp-read.png)
-![alt tag](https://raw.githubusercontent.com/Argonne-National-Laboratory/node-red-contrib-modbustcp/master/modbustcp-write.png)
+![alt tag](images/modbustcp-read.png)
+![alt tag](images/modbustcp-write.png)
 
 #Author
 
