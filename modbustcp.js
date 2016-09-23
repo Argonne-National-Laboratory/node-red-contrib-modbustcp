@@ -29,10 +29,8 @@
  **/
 
 function timestamp() {
-    return new Date().
-        toISOString().
-        replace(/T/, ' ').      // replace T with a space
-        replace(/\..+/, '')
+    return new Date().toISOString().replace(/T/, ' ').     // replace T with a space
+    replace(/\..+/, '')
 }
 function log(msg, args) {
     if (args)
@@ -43,9 +41,9 @@ function log(msg, args) {
 
 
 module.exports = function (RED) {
-    var RED = require(process.env.NODE_RED_HOME+"/red/red");    
     var modbus = require('jsmodbus');
     var util = require('util');
+    var EC = '';
 
     function ModbusTCPServerNode(config) {
         RED.nodes.createNode(this, config);
@@ -56,33 +54,40 @@ module.exports = function (RED) {
         var node = this;
 
         node.initializeModbusTCPConnection = function (handler) {
+
             if (node.modbusconn && node.modbusconn.isConnected()) {
-                log('Already connected to modbustcp slave at ' + config.host + ':' + config.port);
-                if (handler && (typeof handler === 'function')){
-                    handler(node.modbusconn);
-                }
-                return node.modbusconn;
+                //Node was probably re-deployed, close current connection then reconnect
+                console.log('Disconnecting modbustcp slave at ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+                node.modbusconn.close();                
             }
-            log('Connecting to modbustcp slave at ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+
+            console.log('Connecting to modbustcp slave at ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
             node.modbusconn = null;
-            node.modbusconn = modbus.createTCPClient(config.port, config.host, Number(config.unit_id), function(err){
+            node.modbusconn = modbus.createTCPClient(config.port, config.host, Number(config.unit_id), 
+            function(err) {
                 if (err) {                                      
-                    node.error('ModbusTCPConnection: ' + util.inspect(err, false, null));
+                    node.error('ModbusTCPConnection: ' + util.inspect(err, false, null));              
+                    EC = err.code;
                     return null;
                 } 
-                log('ModbusTCP: successfully connected to ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);
+                console.log('Successfully connected to ' + config.host + ':' + config.port + ' unit_id: ' + config.unit_id);                
             });
 
-            if (handler && (typeof handler === 'function'))            
-                handler(node.modbusconn);    
-                       
-            return node.modbusconn;
-
+            handler(node.modbusconn);           
         };
         
         node.on("close", function () {
-            log('disconnecting from modbustcp slave at ' + config.host + ':' + config.port);
-            node.modbusconn && node.modbusconn.isConnected();
+            console.log('Disconnecting from modbustcp slave at ' + config.host + ':' + config.port);            
+            
+            if (node.modbusconn && node.modbusconn.isConnected()) {
+                node.modbusconn.close();
+                node.modbusconn = null;
+                console.log("ModbusTCP Connection Closed");                
+            }
+            else {
+                node.modbusconn = null;
+                console.log("ModbusTCP Connection Closed");             
+            }
         });
     }
 
@@ -93,66 +98,118 @@ module.exports = function (RED) {
         this.name = config.name;
         this.dataType = config.dataType;
         this.adr = Number(config.adr);
-        this.ctrl = RED.nodes.getNode(config.server);
+        this.quantity = config.quantity;
+
         var node = this;
-        var modbusTCPServer = RED.nodes.getNode(config.server);
+        var modbusTCPServer = RED.nodes.getNode(config.server);        
         
-        this.on("input", function (msg) {            
+            modbusTCPServer.initializeModbusTCPConnection(function (connection) {
+                
+                node.connection = connection;               
+
+                node.receiveEvent1 = function () {
+                    if(!node.connection.isConnected())
+                    {                        
+                        console.log(node.name + ' was Disconnected'); 
+                        node.status({fill:"grey",shape:"dot",text:"Disconnected"});  
+                    }              
+                }; 
+
+                node.receiveEvent2 = function(){                                
+                node.status({fill:"green",shape:"dot",text:"Connected"});         
+                };
+
+                node.connection.on('close', node.receiveEvent1);
+                node.connection.on('connect', node.receiveEvent2);
+            });
+
+            function set_successful_write(resp) {
+                node.status({fill: "green", shape: "dot", text: util.inspect(resp, false, null)});
+            }
+
+            function modbus_error_check(err) {
+                if (err) {
+                    node.status({fill:"red",shape:"dot",text:"Error"});
+                    console.log(err);                                 
+                    node.error('ModbusTCPClient: ' + JSON.stringify(err));
+                    return false;
+                }
+                return true;
+            }
+
+            this.on("input", function (msg) {            
             if (!(msg && msg.hasOwnProperty('payload'))) return;
             
             if (msg.payload == null) {
                 node.error('ModbusTCPClient: Invalid msg.payload!');
                 return;
             }
+
             node.status(null);
-            modbusTCPServer.initializeModbusTCPConnection(function(connection){
-                node.receiveEvent1 = function(){
-                    if(!node.connection.isConnected())
-                    {
-                        log('Modbus TCP Server Closed Connection');
-                        node.status({fill:"grey",shape:"dot",text:"Disconnected"});                           
-                    }              
-                }
-                node.connection = connection;
-                node.connection.on('close', node.receiveEvent1);
+            
 
                 switch (node.dataType) {
-                    case "Coil": //FC: 5                         
-                        node.connection.writeSingleCoil(node.adr, Number(msg.payload), function (resp, err) {
-                            if (err) {
-                                node.status({fill:"red",shape:"dot",text:"Error"});
-                                console.log(err);                                 
-                                node.error('ModbusTCPClient: ' + JSON.stringify(err));
-                                return;
+                    case "Coil": //FC: 5  
+
+                        if (msg.payload.length < node.quantity) {
+                            node.error("Quantity should be less or equal to coil payload array Addr: ".join(node.adr, " Q: ", node.quantity));
+                        }
+
+                        if (node.quantity > 1) {
+                            for (i = node.adr; i < node.quantity; i++) {
+                                node.connection.writeSingleCoil(i, msg.payload[i], function (resp, err) {
+                                    if(modbus_error_check(err) && resp) {
+                                        set_successful_write(resp);
+                                    }
+                                });
                             }
-                            if (resp) 
-                            {
-                                node.status({fill:"green",shape:"dot",text:util.inspect(resp, false, null)});
-                            }
-                        });                    
-                        
+                        }
+                        else {
+                            node.connection.writeSingleCoil(node.adr, Number(msg.payload), function (resp, err) {
+                                if(modbus_error_check(err) && resp) {
+                                        set_successful_write(resp);
+                                }   
+                            });
+                        }     
                         break;
+
                     case "HoldingRegister": //FC: 6                               
-                        node.connection.writeSingleRegister(node.adr, Number(msg.payload), function (resp, err) {
-                            if (err) {
-                                node.status({fill:"red",shape:"dot",text:"Error"});
-                                console.log(err); 
-                                node.error('ModbusTCPClient: ' + JSON.stringify(err));
-                                return;
+                        if (msg.payload.length < node.quantity) {
+                            node.error("Quantity should be less or equal to coil payload array Addr: ".join(node.adr, " Q: ", node.quantity));
+                        }
+                        if (node.quantity > 1) {
+                            for (i = node.adr; i < node.quantity; i++) {
+                                node.connection.writeSingleRegister(i, msg.payload[i], function (resp, err) {
+                                    if(modbus_error_check(err) && resp) {
+                                        set_successful_write(resp);
+                                    }
+                                });
                             }
-                            if (resp) 
-                            {
-                                node.status({fill:"green",shape:"dot",text:util.inspect(resp, false, null)});
-                            }
-                        });                         
-                        
-                        break
-                }
-            })
-        });              
+                        }
+                        else {
+                            node.connection.writeSingleRegister(node.adr, Number(msg.payload), function (resp, err) {
+                                if(modbus_error_check(err) && resp) {
+                                        set_successful_write(resp);
+                                }   
+                            });
+                        }     
+                        break;  
+
+                    default:
+                        break;                    
+                   }
+            }
+        );
+
+        node.on("close", function () {
+            node.receiveEvent1 = null;
+            node.status({fill:"grey",shape:"dot",text:"Disconnected"});
+        });
+
+
     }
 
-    //
+    
     RED.nodes.registerType("modbustcp-write", ModbusTCPWrite);
 
     function ModbusTCPRead(config) {
@@ -162,131 +219,179 @@ module.exports = function (RED) {
         this.adr = config.adr;
         this.quantity = config.quantity;
         this.rate = config.rate;
+        this.rateUnit = config.rateUnit;
         this.connection = null;
+
         var node = this;
         var modbusTCPServer = RED.nodes.getNode(config.server);  
-        var timerID;       
+        var timerID; 
+        var unreachable_timerID;      
 
-        modbusTCPServer.initializeModbusTCPConnection(function(connection){            
-            node.receiveEvent1 = function(){
-                if(!node.connection.isConnected())
-                {
-                    log('Modbus TCP Server Closed Connection');
-                    node.status({fill:"grey",shape:"dot",text:"Disconnected"});                       
-                }              
-            }
-
-            node.receiveEvent2 = function(){                                
-                node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " s"});              
-                ModbusMaster(); //fire once at start
-                timerID = setInterval(function(){                 
-                  ModbusMaster();
-                }, node.rate * 1000);  
-            }           
+        modbusTCPServer.initializeModbusTCPConnection(function (connection) { 
 
             node.connection = connection;
+            node.status({fill:"blue",shape:"dot",text:"Initiating....."});            
+                        
+
+            node.receiveEvent1 = function () {
+                if(!node.connection.isConnected())
+                {
+                    console.log(node.name + ' was disconnected or was unable to connect');
+                    node.status({fill:"grey",shape:"dot",text:"Disconnected"});                    
+                    //Retry
+                    clearInterval(timerID); 
+                    timerID = null;                    
+                    node.status({fill:"blue",shape:"dot",text:"Retrying....."});                   
+                    if (EC != 'EHOSTUNREACH') {                         
+                        reconnect();
+                    }
+                    else if (EC == 'EHOSTUNREACH')
+                    {                        
+                        if(!unreachable_timerID) {
+                            unreachable_timerID = setInterval(function () { 
+                              reconnect();
+                            }, 300000); //retry every 5 min 300000
+                        }
+                    }
+                }              
+            };
+            
+            node.receiveEvent2 = function(){                                
+                node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " " + node.rateUnit});              
+                clearInterval(unreachable_timerID); 
+                unreachable_timerID = null;         
+                
+                ModbusMaster(); //fire once at start                
+                if (!timerID) {                    
+                    timerID = setInterval(function () {                 
+                      ModbusMaster();
+                    }, calcRate());  
+                }           
+            };
+
+            function reconnect() {
+                modbusTCPServer.initializeModbusTCPConnection(function (connection) {
+                    console.log('reconnect function fired!');                    
+                    if (connection != null) {
+                        node.connection = connection;                   
+                        if ((typeof node.connection.on === "function") && (typeof node.receiveEvent1 === "function")  && (typeof node.receiveEvent1 === "function")) {                            
+                            node.connection.on('close', node.receiveEvent1);
+                            node.connection.on('connect', node.receiveEvent2); 
+                        }
+                    }
+                });
+            }
+            
             node.connection.on('close', node.receiveEvent1);
-            node.connection.on('connect', node.receiveEvent2);
+            node.connection.on('connect', node.receiveEvent2);  
+        });  
+
+            function set_connected_waiting() {
+                node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " " + node.rateUnit});
+            }
+
+            function set_connected_polling() {
+                node.status({fill:"yellow",shape:"dot",text:"Polling"});
+            }
+
+            function modbus_error_check(err) {
+                if (err) {
+                    node.status({fill:"red",shape:"dot",text:"Error"});
+                    console.log(err);                                 
+                    node.error('ModbusTCPClient: ' + JSON.stringify(err));
+                    return false;
+                }
+                return true;
+            }       
+
+            function calcRate() {
+                switch (node.rateUnit) {
+                    case "ms":
+                        rate = node.rate; //milliseconds
+                        break;
+                    case "s":
+                        rate = node.rate * 1000; //seconds
+                        break;
+                    case "m":
+                        rate = node.rate * 60000; //minutes
+                        break;
+                    case "h":
+                        rate = node.rate * 3600000; //hours
+                        break;
+                    default:
+                        break;
+                }
+                return rate;
+            }
 
             function ModbusMaster() {
                 var msg = {};  
-                msg.topic = node.name;              
-                if(node.connection.isConnected())
-                {          
+                msg.topic = node.name;  
+
+                if(node.connection.isConnected()) {     
+                    
                     switch (node.dataType){
                         case "Coil": //FC: 1
-                            node.status({fill:"yellow",shape:"dot",text:"Polling"});
-                            node.connection.readCoils(node.adr,node.quantity, function (resp, err) { 
-                                if (err) {
-                                    node.status({fill:"red",shape:"dot",text:"Error"});
-                                    console.log(err); 
-                                    node.error('ModbusTCPClient: ' + JSON.stringify(err));
-                                    return;
-                                }
-                                if (resp) 
-                                {
-                                    node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " s"});
+                            set_connected_polling();
+                            node.connection.readCoils(node.adr, node.quantity, function (resp, err) { 
+                                if (modbus_error_check(err) && resp) {
+                                    set_connected_waiting();
                                     msg.payload = resp.coils; // array of coil values
                                     node.send(msg);
                                 }
                             });
                             break;
                         case "Input": //FC: 2
-                            node.status({fill:"yellow",shape:"dot",text:"Polling"});
-                            node.connection.readDiscreteInput(node.adr,node.quantity, function (resp, err) { 
-                                if (err) {
-                                    node.status({fill:"red",shape:"dot",text:"Error"});
-                                    console.log(err); 
-                                    node.error('ModbusTCPClient: ' + JSON.stringify(err));
-                                    return;
-                                }
-                                if (resp) 
-                                {
-                                    node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " s"});
+                            set_connected_polling();
+                            node.connection.readDiscreteInput(node.adr, node.quantity, function (resp, err) { 
+                                if (modbus_error_check(err) && resp) {
+                                    set_connected_waiting();
                                     msg.payload = resp.coils; // array of discrete input values
                                     node.send(msg);
                                 }
                             });
                             break;
                         case "HoldingRegister": //FC: 3
-                            node.status({fill:"yellow",shape:"dot",text:"Polling"});
-                            node.connection.readHoldingRegister(node.adr,node.quantity, function (resp, err) { 
-                                if (err) {
-                                    node.status({fill:"red",shape:"dot",text:"Error"});
-                                    console.log(err); 
-                                    node.error('ModbusTCPClient: ' + JSON.stringify(err));
-                                    return;
-                                }
-                                if (resp) 
-                                {
-                                    node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " s"});
+                            set_connected_polling();
+                            node.connection.readHoldingRegister(node.adr, node.quantity, function (resp, err) { 
+                                if (modbus_error_check(err) && resp) {
+                                    set_connected_waiting();
                                     msg.payload = resp.register; // array of register values
                                     node.send(msg);
                                 }
                             });
                             break;
                         case "InputRegister": //FC: 4                        
-                            node.status({fill:"yellow",shape:"dot",text:"Polling"});
-                            node.connection.readInputRegister(node.adr,node.quantity, function (resp, err) { 
-                                if (err) {
-                                    node.status({fill:"red",shape:"dot",text:"Error"});
-                                    console.log(err); 
-                                    node.error('ModbusTCPClient: ' + JSON.stringify(err));
-                                    return;
-                                }
-                                if (resp) 
-                                {                                    
-                                    node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " s"});
+                            set_connected_polling();                            
+                            node.connection.readInputRegister(node.adr, node.quantity, function (resp, err) { 
+                                if (modbus_error_check(err) && resp) {                                 
+                                    set_connected_waiting();
                                     msg.payload = resp.register; // array of register values
                                     node.send(msg);                                    
-                                }
+                                }                                                               
                             });
                             break;
                     }
                 } 
                 else
                 {
-                    log('No Modbus TCP Server Connection Detected, Initiating....');
+                    console.log('No Modbus TCP Server Connection Detected, Initiating....');
                     clearInterval(timerID);
-                    node.connection = modbusTCPServer.initializeModbusTCPConnection(); 
-                    node.connection.on('close', node.receiveEvent1);
-                    node.connection.on('connect', node.receiveEvent2);                                      
+                    timerID = null;                
+                    node.status({fill:"blue",shape:"dot",text:"Initiating....."});
+                    reconnect();                                                   
                 }                        
-            }
-            
-        });           
-            node.on("close", function () {
-                if(node.connection.isConnected())
-                {
-                    node.connection.close();
-                    console.log("MODBUS TCP Client Closed"); 
-                    clearInterval(timerID);                   
-                    node.status({fill:"grey",shape:"dot",text:"Disconnected"});
-                }
-                
-            });
+            }       
+
+        node.on("close", function () {                
+                clearInterval(timerID);
+                timerID = null;                    
+                node.receiveEvent1 = null;
+                node.receiveEvent2 = null;                  
+                node.status({fill:"grey",shape:"dot",text:"Disconnected"});
+        });
     }
     
     RED.nodes.registerType("modbustcp-read", ModbusTCPRead);
 
-}
+};

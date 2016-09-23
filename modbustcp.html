@@ -65,6 +65,10 @@
         <input type="text" id="node-input-adr">
     </div>
     <div class="form-row">
+    <label for="node-input-quantity"><i class="icon-bookmark"></i> Quantity</label>
+    	<input type="text" id="node-input-quantity" placeholder="1-65535">
+    </div>
+    <div class="form-row">
         <label for="node-input-server"><i class="icon-bookmark"></i> Server</label>
         <input type="text" id="node-input-server">
     </div>
@@ -106,8 +110,14 @@
         <input type="text" id="node-input-quantity" placeholder="1-65535">
     </div>
     <div class="form-row">
-        <label for="node-input-rate"><i class="icon-bookmark"></i> Poll Rate (s)</label>
-        <input type="number" id="node-input-rate" placeholder="1-65535">
+		<label for="node-input-rate"><i class="icon-bookmark"></i> Poll Rate </label>
+		<input type="number" id="node-input-rate" placeholder="1-65535" style="max-width:120px">
+		<select id="node-input-rateUnit" style="max-width:160px">
+			<option value="ms">millisecond(s)</option>
+			<option value="s">second(s)</option>
+			<option value="m">minute(s)</option>
+			<option value="h">hour(s)</option>
+         </select>
     </div>
         <div class="form-row">
         <label for="node-input-server"><i class="icon-globe"></i> Server</label>
@@ -135,7 +145,7 @@
         defaults: {
             host: {value: "127.0.0.1", required: true},
             port: {value: 502, required: true, validate: RED.validators.number()},
-            unit_id: {value:1, required:true, validate: RED.validators.number()}            
+            unit_id: {value: 1, required: true, validate: RED.validators.number()}            
         },
         label: function () {
             return "modbustcp@" + this.host + ":" + this.port;
@@ -151,6 +161,7 @@
             name: {value: ""},
             dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},
+            quantity: {value: "", required: true, validate: RED.validators.number()},
             server: {value: "", type: "modbustcp-server"}
         },
         inputs: 1,
@@ -172,8 +183,17 @@
             name: {value: ""},
             dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},
-            quantity: {value: "", required:true, validate: RED.validators.number()},  
-            rate: {value:"", required:true, validate:function(v) { return v > 0 } },         
+            quantity: {value: "", required: true, validate: RED.validators.number()},
+            rate: {
+            	value: "", required: true, validate: function (v) {
+            		return v > 0
+            	}
+            },
+            rateUnit: {
+            	value: "", required: true, validate: function (v) {
+            		return "ms" == v || "s" == v || "m" == v || "h" == v 
+            	}
+            },                     
             server: {value: "", type: "modbustcp-server"}
         },
         inputs: 0,
