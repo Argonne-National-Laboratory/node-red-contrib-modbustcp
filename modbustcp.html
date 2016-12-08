@@ -41,11 +41,18 @@
     <div class="form-row">
         <label for="node-config-input-unit_id"><i class="icon-bookmark"></i> Unit Id</label>
         <input type="text" id="node-config-input-unit_id">
+    </div>    
+    <div class="form-row1">  
+        <label for="node-config-input-reconnecttimeout"><i class="fa fa-clock-o"></i> Reconnect Interval (s)</label>
+        <input type="text" id="node-config-input-reconnecttimeout">
     </div>
+     
 </script>
 
 <script type="text/x-red" data-help-name="modbustcp-server">
-    <p>Uses MODBUS TCP to read/write ethernet host:port and register/coil addresses.</p>
+    <p>Uses MODBUSTCP to read/write ethernet host:port and register/coil addresses.</p>
+    <p>Reconnect Interval allows the MODBUSTCP connection to automatically reconnect after the interval has elapsed to re-establish a TCP connection.
+    Reconnect Interval is an optional input.  Leave blank if auto-reconnect is not desired. </p>
 </script>
 
 <script type="text/x-red" data-template-name="modbustcp-write">
@@ -58,6 +65,8 @@
         <select id="node-input-dataType">
             <option value="Coil">FC 5: Write Single Coil</option>
             <option value="HoldingRegister">FC 6: Write Single Holding Register</option>
+            <option value="Coils">FC 15: Write Multiple Coils</option>
+            <option value="HoldingRegisters">FC 16: Write Multiple Holding Registers</option>
         </select>
     </div>
     <div class="form-row">
@@ -65,13 +74,10 @@
         <input type="text" id="node-input-adr">
     </div>
     <div class="form-row">
-    <label for="node-input-quantity"><i class="icon-bookmark"></i> Quantity</label>
-    	<input type="text" id="node-input-quantity" placeholder="1-65535">
-    </div>
-    <div class="form-row">
         <label for="node-input-server"><i class="icon-bookmark"></i> Server</label>
         <input type="text" id="node-input-server">
-    </div>
+    </div>   
+       
 </script>
 
 <script type="text/x-red" data-help-name="modbustcp-write">
@@ -79,11 +85,14 @@
     <h4>Function codes currently supported include:</h4>
         <ul>
           <li>FC 5: Write Single Coil</li>          
-          <li>FC 6: Write Single Holding Register</li>          
+          <li>FC 6: Write Single Holding Register</li> 
+          <li>FC 15: Write Multiple Coils</li> 
+          <li>FC 16: Write Multiple Holding Registers</li>          
         </ul>  
      Choose a function code (FC) from the dropdown menu, select the coil/register start address (0:65535).  Choose or edit the Modbus TCP server configuration.
      <br><br>
-    For FC 5, <b>msg.payload</b> must be a number or string value of 0 or 1.  For FC 6, <b>msg.payload</b> must be a number or string value between 0:65535.
+    For FC 5, <b>msg.payload</b> must be a number or string value of 0 or 1.  For FC 6, <b>msg.payload</b> must be a number or string value between 0:65535. 
+    For FC15, <b>msg.payload</b> must be an array of numbers or strings with values of 0 or 1.  For FC 16, <b>msg.payload</b> must be an array of numbers or strings with values between 0:65535.
      </p>
 </script>
 
@@ -110,7 +119,7 @@
         <input type="text" id="node-input-quantity" placeholder="1-65535">
     </div>
     <div class="form-row">
-		<label for="node-input-rate"><i class="icon-bookmark"></i> Poll Rate </label>
+		<label for="node-input-rate"><i class="fa fa-clock-o"></i> Poll Rate </label>
 		<input type="number" id="node-input-rate" placeholder="1-65535" style="max-width:120px">
 		<select id="node-input-rateUnit" style="max-width:160px">
 			<option value="ms">millisecond(s)</option>
@@ -145,7 +154,8 @@
         defaults: {
             host: {value: "127.0.0.1", required: true},
             port: {value: 502, required: true, validate: RED.validators.number()},
-            unit_id: {value: 1, required: true, validate: RED.validators.number()}            
+            unit_id: {value: 1, required: true, validate: RED.validators.number()},            
+            reconnecttimeout: {value: "", required: false}
         },
         label: function () {
             return "modbustcp@" + this.host + ":" + this.port;
@@ -160,8 +170,7 @@
         defaults: {
             name: {value: ""},
             dataType: {value: "", required: true},
-            adr: {value: "", required: true, validate: RED.validators.number()},
-            quantity: {value: "", required: true, validate: RED.validators.number()},
+            adr: {value: "", required: true, validate: RED.validators.number()},            
             server: {value: "", type: "modbustcp-server"}
         },
         inputs: 1,

@@ -1,14 +1,17 @@
 {
   "name": "node-red-contrib-modbustcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
   "main": "modbustcp.js",
   "dependencies": {
-    "jsmodbus": "^0.5.0"
+    "jsmodbus": "^2.0.1"
   },
   "devDependencies": {},
   "scripts": {
     "test": "echo \\\"Error: no test specified\\\" && exit 1"
+  },
+  "engine": {
+    "node": ">=4.5.0"
   },
   "repository": {
     "type": "git",
