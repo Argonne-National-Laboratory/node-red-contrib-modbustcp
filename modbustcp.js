@@ -171,8 +171,19 @@ module.exports = function (RED) {
                              
                         break;  
                     case "Coils": //FC: 15
-
-                        node.connection.writeMultipleCoils(node.adr, msg.payload).then(function (resp, err) {
+                    	
+                    	if (Array.isArray(msg.payload)) {
+                    		var values = [];
+	                    	for(i=0;i<msg.payload.length;i++)
+	                    	{
+	                    		values.push(parseInt(msg.payload[i]));
+	                    	}   
+                    	}
+                    	else {
+                    		node.error(node.name + ': ' + 'msg.payload not an array');
+                    		break;
+                    	}
+                        node.connection.writeMultipleCoils(node.adr, values).then(function (resp, err) {                        	
                             if(modbus_error_check(err) && resp) {
                                     set_successful_write(resp);
                             }   
@@ -182,7 +193,18 @@ module.exports = function (RED) {
 
                     case "HoldingRegisters": //FC: 16 
 
-                        node.connection.writeMultipleRegisters(node.adr, msg.payload).then(function (resp, err) {                            
+                    	if (Array.isArray(msg.payload)) {
+                    		var values = [];
+	                    	for(i=0;i<msg.payload.length;i++)
+	                    	{
+	                    		values.push(parseInt(msg.payload[i]));
+	                    	}   
+                    	}
+                    	else {
+                    		node.error(node.name + ': ' + 'msg.payload not an array');
+                    		break;
+                    	}
+                        node.connection.writeMultipleRegisters(node.adr, values).then(function (resp, err) {                            
                             if(modbus_error_check(err) && resp) {                                    
                                     set_successful_write(resp);
                             }   
