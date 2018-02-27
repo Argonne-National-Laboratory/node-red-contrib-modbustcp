@@ -132,7 +132,8 @@ module.exports = function (RED) {
             }
 
             node.on("input", function (msg) { 
-                                   
+                let address;
+
                 if (node.connection.getState() === 'closed')
                 {                   
                     if (!node.connection.autoReconnect)
@@ -148,13 +149,20 @@ module.exports = function (RED) {
                     return;
                 }
 
+                if (msg.hasOwnProperty('address') && !isNaN(msg.address)){
+                    address = Number(msg.address);
+                }
+                else{
+                    address = node.adr;
+                }
+
                 node.status(null);
             
 
                 switch (node.dataType) {
                     case "Coil": //FC: 5  
                        
-                        node.connection.writeSingleCoil(node.adr, Number(msg.payload)).then(function (resp, err) {
+                        node.connection.writeSingleCoil(address, Number(msg.payload)).then(function (resp, err) {
                             if(modbus_error_check(err) && resp) {                                    
                                     set_successful_write(resp);
                             }   
@@ -163,7 +171,7 @@ module.exports = function (RED) {
                         break;
                     case "HoldingRegister": //FC: 6                               
 
-                        node.connection.writeSingleRegister(node.adr, Number(msg.payload)).then(function (resp, err) {  
+                        node.connection.writeSingleRegister(address, Number(msg.payload)).then(function (resp, err) {  
                             if(modbus_error_check(err) && resp) {
                                     set_successful_write(resp);
                             }   
@@ -183,7 +191,7 @@ module.exports = function (RED) {
                     		node.error(node.name + ': ' + 'msg.payload not an array');
                     		break;
                     	}
-                        node.connection.writeMultipleCoils(node.adr, values).then(function (resp, err) {                        	
+                        node.connection.writeMultipleCoils(address, values).then(function (resp, err) {                        	
                             if(modbus_error_check(err) && resp) {
                                     set_successful_write(resp);
                             }   
@@ -204,7 +212,7 @@ module.exports = function (RED) {
                     		node.error(node.name + ': ' + 'msg.payload not an array');
                     		break;
                     	}
-                        node.connection.writeMultipleRegisters(node.adr, values).then(function (resp, err) {                            
+                        node.connection.writeMultipleRegisters(address, values).then(function (resp, err) {                            
                             if(modbus_error_check(err) && resp) {                                    
                                     set_successful_write(resp);
                             }   
@@ -273,6 +281,10 @@ module.exports = function (RED) {
             node.connection.on('connect', node.receiveEvent2);             
         });  
 
+            //////////////////////////////////////////////////////////
+            // Set Node Status indicators
+            //
+
             function set_connected_waiting() {
                 node.status({fill:"green",shape:"dot",text:"Connected: Rate:" + node.rate + " " + node.rateUnit});
             }
@@ -291,7 +303,12 @@ module.exports = function (RED) {
                 return true;
             }       
 
+            //
+            // END: Set Node Status indicators
+            //////////////////////////////////////////////////////////
+
             function calcRate() {
+                let rate;
                 switch (node.rateUnit) {
                     case "ms":
                         rate = node.rate; //milliseconds
