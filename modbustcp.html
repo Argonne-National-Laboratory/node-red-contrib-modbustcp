@@ -61,6 +61,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-topic"><i class="icon-tag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="topic">
+    </div>
+    <div class="form-row">
         <label for="node-input-dataType"><i class="icon-list"></i> Type</label>
         <select id="node-input-dataType">
             <option value="Coil">FC 5: Write Single Coil</option>
@@ -100,6 +104,10 @@
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-topic"><i class="icon-tag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="topic">
     </div>
     <div class="form-row">
         <label for="node-input-dataType"><i class="icon-list"></i> FC</label>
@@ -169,6 +177,7 @@
         color: '#E9967A',
         defaults: {
             name: {value: ""},
+            topic: {value: ""},
             dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},            
             server: {value: "", type: "modbustcp-server"}
@@ -190,12 +199,13 @@
         color: '#E9967A',
         defaults: {
             name: {value: ""},
+            topic: {value: ""},
             dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},
             quantity: {value: "", required: true, validate: RED.validators.number()},
             rate: {
             	value: "", required: true, validate: function (v) {
-            		return v > 0
+            		return v >= 0
             	}
             },
             rateUnit: {
