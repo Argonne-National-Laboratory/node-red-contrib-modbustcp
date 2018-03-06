@@ -42,6 +42,7 @@ function log(msg, args) {
 module.exports = function(RED) {
   var modbus = require("jsmodbus");
   var util = require("util");
+  var ieee = require("./ieee");
 
   function ModbusTCPServerNode(config) {
     RED.nodes.createNode(this, config);
@@ -188,7 +189,7 @@ module.exports = function(RED) {
         case "Coils": //FC: 15
           if (Array.isArray(msg.payload)) {
             var values = [];
-            for (i = 0; i < msg.payload.length; i++) {
+            for (var i = 0; i < msg.payload.length; i++) {
               values.push(parseInt(msg.payload[i]));
             }
           } else {

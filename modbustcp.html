@@ -136,7 +136,16 @@
 			<option value="h">hour(s)</option>
          </select>
     </div>
-        <div class="form-row">
+    <div class="form-row">
+        <label for="node-input-ieee"><i class="fa fa-hashtag"></i> -> IEEE</label>
+        <select id="node-input-ieee" style="max-width:160px">
+            <option value="off">&lt;off&gt;</option>
+            <option value="Single">single</option>
+            <option value="Double">double</option>
+        </select>
+        <input type="checkbox" id="node-input-ieeeBE"><label for="node-input-ieeeBE">Big-Endian</label>
+    </div>
+    <div class="form-row">
         <label for="node-input-server"><i class="icon-globe"></i> Server</label>
         <input type="text" id="node-input-server">
     </div>
@@ -212,7 +221,9 @@
             	value: "", required: true, validate: function (v) {
             		return "ms" == v || "s" == v || "m" == v || "h" == v 
             	}
-            },                     
+            },
+            ieee: {value: "off", required: true},
+            ieeeBE: {value: true, required: true},
             server: {value: "", type: "modbustcp-server"}
         },
         inputs: 1,
