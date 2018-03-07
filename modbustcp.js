@@ -414,7 +414,7 @@ module.exports = function(RED) {
 
     function numfloat(nums, isBE) 
     {
-      console.log('Got a numfloat', nums);
+      // console.log('Got a numfloat', nums);
       var x = 0;
         var data = [];
         for (var i=0; i<nums.length; i=i+2) {
@@ -427,30 +427,45 @@ module.exports = function(RED) {
           num[2] = nums[z] >> 8;
           num[3] = (nums[z] & 0x00FF);
           data[x] = ieee.fromIEEE754Single(num);
-          console.log(data[x]);
+          // console.log(data[x]);
           x++;
         }
-        console.log(data);
+        // console.log(data);
         return data;
 
     }
 
     function numdouble(nums, isBE) 
     {
-        console.log('Got a numdouble');
+        // console.log('Got a numdouble');
         var x = 0;
         var data = [];
+
+        var offset = [];
+        var z;
+
+        if (isBE != true){
+          for (z = 3; z >= 0; z=z-1){
+            offset.push(z);
+          }
+        }
+        else{
+          for (z = 0; z <= 3; z=z+1){
+            offset.push(z);
+          }          
+        }
+
         for (var i=0; i<nums.length; i=i+2) {
           var num = [];
           //currently setup for Big Endian (swap i and i+1 for Little Endian)
-          num[0] =   nums[i] >> 8;
-          num[1] = (nums[i] & 0x00FF);
-          num[2] = nums[i+1] >> 8;
-          num[3] = (nums[i+1] & 0x00FF);
-          num[4] =   nums[i+2] >> 8;
-          num[5] = (nums[i+2] & 0x00FF);
-          num[6] = nums[i+3] >> 8;
-          num[7] = (nums[i+3] & 0x00FF);
+          num[0] =   nums[i + offset[0]] >> 8;
+          num[1] = (nums[i + offset[0]] & 0x00FF);
+          num[2] = nums[i+ offset[1]] >> 8;
+          num[3] = (nums[i+ offset[1]] & 0x00FF);
+          num[4] =   nums[i+ offset[2]] >> 8;
+          num[5] = (nums[i+ offset[2]] & 0x00FF);
+          num[6] = nums[i+ offset[3]] >> 8;
+          num[7] = (nums[i+ offset[3]] & 0x00FF);
           data[x] = ieee.fromIEEE754Double(num);
           x++;
         }
@@ -510,8 +525,8 @@ module.exports = function(RED) {
             .then(function(resp, error) {
               if (modbus_error_check(error) && resp) {
                 set_connected_waiting();
-                console.log('settings:', settings.ieeeType);
-                console.log('Big End: ', settings.ieeeBE);
+                // console.log('settings:', settings.ieeeType);
+                // console.log('Big End: ', settings.ieeeBE);
                 switch(settings.ieeeType){
                   case 'single':
                     msg.payload = numfloat(resp.register, settings.ieeeBE);
@@ -539,7 +554,18 @@ module.exports = function(RED) {
             .then(function(resp, error) {
               if (modbus_error_check(error) && resp) {
                 set_connected_waiting();
-                msg.payload = resp.register; // array of register values
+                switch(settings.ieeeType){
+                  case 'single':
+                    msg.payload = numfloat(resp.register, settings.ieeeBE);
+                    break;
+                  case 'double':
+                    msg.payload = numdouble(resp.register, settings.ieeeBE);
+                    break;
+                  case 'off':
+                  default:
+                    msg.payload = resp.register; // array of register values
+                    break;
+                }
                 node.send(msg);
               }
             });
