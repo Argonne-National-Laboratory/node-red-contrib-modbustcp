@@ -137,18 +137,28 @@
          </select>
     </div>
     <div class="form-row">
-        <label for="node-input-ieee"><i class="fa fa-hashtag"></i> -> IEEE</label>
-        <select id="node-input-ieee" style="max-width:160px">
-            <option value="off">&lt;off&gt;</option>
-            <option value="Single">single</option>
-            <option value="Double">double</option>
-        </select>
-        <input type="checkbox" id="node-input-ieeeBE"><label for="node-input-ieeeBE">Big-Endian</label>
-    </div>
-    <div class="form-row">
         <label for="node-input-server"><i class="icon-globe"></i> Server</label>
         <input type="text" id="node-input-server">
     </div>
+    <div class="header">IEEE Formatting</div>
+    <div class="bordered">
+        <div class="form-row">
+            <label for="node-input-ieeeType"><i class="fa fa-hashtag"></i> Type</label>
+            <select id="node-input-ieeeType">
+                <option selected="selected" value="off">&lt;off&gt;</option>
+                <option value="single">single</option>
+                <option value="double">double</option>
+            </select>
+        </div>
+        <div class="form-row">                
+            <label for="node-input-ieeeBE"><i class="fa fa-exchange"></i> Endian</label>
+            <select id="node-input-ieeeBE">
+                <option selected="selected" value=true>Big Endian</option>
+                <option value=false>Little Endian</option>
+            </select>
+        </div>
+    </div>
+
 </script>
 
 <script type="text/x-red" data-help-name="modbustcp-read">
@@ -222,9 +232,9 @@
             		return "ms" == v || "s" == v || "m" == v || "h" == v 
             	}
             },
-            ieee: {value: "off", required: true},
-            ieeeBE: {value: true, required: true},
-            server: {value: "", type: "modbustcp-server"}
+            server: {value: "", type: "modbustcp-server"},
+            ieeeType: {value: "off", required: true},
+            ieeeBE: {value: true, required: true}
         },
         inputs: 1,
         outputs: 1,

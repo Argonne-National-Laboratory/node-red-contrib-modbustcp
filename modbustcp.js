@@ -1,3 +1,4 @@
+
 /**
  * Original Work Copyright 2015 Valmet Automation Inc.
  *
@@ -43,6 +44,7 @@ module.exports = function(RED) {
   var modbus = require("jsmodbus");
   var util = require("util");
   var ieee = require("./ieee");
+  var util = require("util");
 
   function ModbusTCPServerNode(config) {
     RED.nodes.createNode(this, config);
@@ -252,6 +254,9 @@ module.exports = function(RED) {
     this.rate = config.rate;
     this.rateUnit = config.rateUnit;
     this.connection = null;
+    this.ieeeType = config.ieeeType || 'off';
+    this.ieeeBE = config.ieeeBE || true;
+
     var node = this;
 
 
@@ -272,7 +277,9 @@ module.exports = function(RED) {
         topic: node.topic || node.name,
         adr: node.adr,
         quantity: node.quantity,
-        dataType: node.dataType
+        dataType: node.dataType,
+        ieeeType: node.ieeeType,
+        ieeeBE: node.ieeeBE
       };
       node.status({
         fill: "green",
@@ -316,8 +323,14 @@ module.exports = function(RED) {
           topic: params.topic || msg.topic || node.topic || node.name,
           adr: params.address || node.adr,
           quantity: params.quantity || node.quantity,
-          dataType: params.dataType || node.dataType
+          dataType: params.dataType || node.dataType,
+          ieeeType: params.ieeeType || node.ieeeType,
+          ieeeBE: node.ieeeBE
         };
+
+        if (params.hasOwnProperty('ieeeBE') && util.isBoolean(params.ieeeBE)){
+          settings.ieeeBE = params.ieeeBE;
+        }
   
         if (settings.name && timers.hasOwnProperty(settings.name)){
           clearInterval(timers[settings.name]);
@@ -399,6 +412,52 @@ module.exports = function(RED) {
       return rate;
     }
 
+    function numfloat(nums, isBE) 
+    {
+      console.log('Got a numfloat', nums);
+      var x = 0;
+        var data = [];
+        for (var i=0; i<nums.length; i=i+2) {
+          var num = [];
+          //currently setup for Big Endian (swap i and i+1 for Little Endian)
+          var z = (isBE) ? i : i + 1;
+          num[0] =   nums[z] >> 8;
+          num[1] = (nums[z] & 0x00FF);
+          z = (isBE) ? i + 1 : i;
+          num[2] = nums[z] >> 8;
+          num[3] = (nums[z] & 0x00FF);
+          data[x] = ieee.fromIEEE754Single(num);
+          console.log(data[x]);
+          x++;
+        }
+        console.log(data);
+        return data;
+
+    }
+
+    function numdouble(nums, isBE) 
+    {
+        console.log('Got a numdouble');
+        var x = 0;
+        var data = [];
+        for (var i=0; i<nums.length; i=i+2) {
+          var num = [];
+          //currently setup for Big Endian (swap i and i+1 for Little Endian)
+          num[0] =   nums[i] >> 8;
+          num[1] = (nums[i] & 0x00FF);
+          num[2] = nums[i+1] >> 8;
+          num[3] = (nums[i+1] & 0x00FF);
+          num[4] =   nums[i+2] >> 8;
+          num[5] = (nums[i+2] & 0x00FF);
+          num[6] = nums[i+3] >> 8;
+          num[7] = (nums[i+3] & 0x00FF);
+          data[x] = ieee.fromIEEE754Double(num);
+          x++;
+        }
+        return data;
+    }
+
+
     function ModbusMaster(settings) {
       var msg = {};
       msg.settings = settings;
@@ -451,7 +510,20 @@ module.exports = function(RED) {
             .then(function(resp, error) {
               if (modbus_error_check(error) && resp) {
                 set_connected_waiting();
-                msg.payload = resp.register; // array of register values
+                console.log('settings:', settings.ieeeType);
+                console.log('Big End: ', settings.ieeeBE);
+                switch(settings.ieeeType){
+                  case 'single':
+                    msg.payload = numfloat(resp.register, settings.ieeeBE);
+                    break;
+                  case 'double':
+                    msg.payload = numdouble(resp.register, settings.ieeeBE);
+                    break;
+                  case 'off':
+                  default:
+                    msg.payload = resp.register; // array of register values
+                    break;
+                }
                 node.send(msg);
               }
             });
