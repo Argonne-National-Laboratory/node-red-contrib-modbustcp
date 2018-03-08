@@ -143,8 +143,9 @@ module.exports = function(RED) {
       return true;
     }
 
-    node.on("input", function(msg) {
+    node.on("input", msg => {
       let address;
+      let dataType;
 
       if (node.connection.getState() === "closed") {
         if (!node.connection.autoReconnect) {
@@ -159,15 +160,26 @@ module.exports = function(RED) {
         return;
       }
 
+      // Check to see if the incoming message overrides the address
       if (msg.hasOwnProperty("address") && !isNaN(msg.address)) {
         address = Number(msg.address);
       } else {
         address = node.adr;
       }
 
+      // Check to see if the incoming message overrides the dataTpye
+      if (msg.hasOwnProperty("dataType") ) {
+        dataType = msg.datatype;
+      } else {
+        dataType = node.dataType;
+      }
+
       node.status(null);
 
-      switch (node.dataType) {
+      switch (dataType) {
+        case 5:
+        case "FC5":
+        case "FC 5":
         case "Coil": //FC: 5
           node.connection
             .writeSingleCoil(address, Number(msg.payload))
@@ -178,6 +190,9 @@ module.exports = function(RED) {
             });
 
           break;
+        case 6:
+        case "FC6":
+        case "FC 6":
         case "HoldingRegister": //FC: 6
           node.connection
             .writeSingleRegister(address, Number(msg.payload))
@@ -188,6 +203,9 @@ module.exports = function(RED) {
             });
 
           break;
+        case 15:
+        case "FC15":
+        case "FC 15":
         case "Coils": //FC: 15
           if (Array.isArray(msg.payload)) {
             var values = [];
@@ -208,6 +226,9 @@ module.exports = function(RED) {
 
           break;
 
+        case 16:
+        case "FC16":
+        case "FC 16":
         case "HoldingRegisters": //FC: 16
           if (Array.isArray(msg.payload)) {
             var values = [];
