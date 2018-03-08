@@ -305,7 +305,7 @@ module.exports = function(RED) {
       node.status({
         fill: "green",
         shape: "dot",
-        text: "Connected: Rate:" + node.rate + " " + node.rateUnit
+        text: "Connected"
       });
       clearInterval(timerID);
       timerID = null;
@@ -391,7 +391,7 @@ module.exports = function(RED) {
       node.status({
         fill: "green",
         shape: "dot",
-        text: "Connected: Rate:" + node.rate + " " + node.rateUnit
+        text: "Connected" 
       });
     }
 
