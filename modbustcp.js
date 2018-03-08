@@ -174,7 +174,7 @@ module.exports = function(RED) {
         dataType = node.dataType;
       }
 
-      node.status(null);
+      node.status({});
 
       switch (dataType) {
         case 5:
