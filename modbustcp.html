@@ -31,6 +31,10 @@
 
 <script type="text/x-red" data-template-name="modbustcp-server">
     <div class="form-row">
+        <label for="node-config-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
         <label for="node-config-input-host"><i class="icon-bookmark"></i> Host</label>
         <input type="text" id="node-config-input-host">
     </div>
@@ -59,6 +63,10 @@
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-topic"><i class="icon-tag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="topic">
     </div>
     <div class="form-row">
         <label for="node-input-dataType"><i class="icon-list"></i> Type</label>
@@ -102,6 +110,10 @@
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
     <div class="form-row">
+        <label for="node-input-topic"><i class="icon-tag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="topic">
+    </div>
+    <div class="form-row">
         <label for="node-input-dataType"><i class="icon-list"></i> FC</label>
         <select id="node-input-dataType">
             <option value="Coil">FC 1: Read Coils</option>
@@ -128,14 +140,34 @@
 			<option value="h">hour(s)</option>
          </select>
     </div>
-        <div class="form-row">
+    <div class="form-row">
         <label for="node-input-server"><i class="icon-globe"></i> Server</label>
         <input type="text" id="node-input-server">
     </div>
+    <div class="header">IEEE Formatting</div>
+    <div class="bordered">
+        <div class="form-row">
+            <label for="node-input-ieeeType"><i class="fa fa-hashtag"></i> Type</label>
+            <select id="node-input-ieeeType">
+                <option selected="selected" value="off">&lt;off&gt;</option>
+                <option value="single">single</option>
+                <option value="double">double</option>
+            </select>
+        </div>
+        <div class="form-row">                
+            <label for="node-input-ieeeBE"><i class="fa fa-exchange"></i> Endian</label>
+            <select id="node-input-ieeeBE">
+                <option selected="selected" value=true>Big Endian</option>
+                <option value=false>Little Endian</option>
+            </select>
+        </div>
+    </div>
+
 </script>
 
 <script type="text/x-red" data-help-name="modbustcp-read">
     <p>Modbus TCP client node.  Connects to a Modbus TCP server to read register values at a given poll rate.
+    <h3>Configuration Settings</h3>
     <h4>Function codes currently supported include:</h4>
         <ul>
           <li>FC 1: Read Coils</li>          
@@ -145,20 +177,48 @@
         </ul>  
      Choose a function code (FC) from the dropdown menu, select the coil/input/register start address (0:65535), and the quantity of coils/inputs/registers to be read from the start address.  Input a poll rate (greater than zero) in seconds to setup the poll rate.  Choose or edit the Modbus TCP server configuration.
      <br><br>
-     Outputs an object called <b>msg</b> containing <b>msg.payload</b> with an array of the read coils/inputs/registers.</p>
+     <p><strong>IEEE Formatting</strong> Valid for register values, you can choose to have the output formatted 
+    for IEEE 754 Single and Double percision. Choose also the input format for Big or Little endian</p>
+    <h3>Input</h3>
+    You may input one or more payload values to initiate one or more additional timed read events.
+    <br/><br/>
+    For example, use an inject node to inject a JSON payload similar to the following:
+    <br/>
+    <pre>
+    <code>
+    {
+        "name": "HoldingsDblBig",
+        "topic": "Topic1",
+        "address": 0,
+        "quantity": 4,
+        "dataType": "FC3",
+        "interval": 3000,  // in ms
+        "ieeeBE": true,
+        "ieeeType": "double"
+    }
+    </code>
+    </pre>
+    <i>*Refer to the Readme file for further explaination.</i>Explanation 
+    <br/><br/>
+    <h3>Output</h3>
+    Outputs an object called <b>msg</b> containing <b>msg.payload</b> with an array of the read coils/inputs/registers.</p>
+    <b>msg.settings</b> also cotains further information about the request used to generate the read information, including
+    a <b>msg.settings.name</b> which can be used to distinguish output values when a single node is generating multiple
+    output events.
 </script>
 
 <script type="text/javascript">
     RED.nodes.registerType('modbustcp-server', {
         category: 'config',
         defaults: {
+            name: {value: "", required: false},
             host: {value: "127.0.0.1", required: true},
             port: {value: 502, required: true, validate: RED.validators.number()},
             unit_id: {value: 1, required: true, validate: RED.validators.number()},            
             reconnecttimeout: {value: "", required: false}
         },
         label: function () {
-            return "modbustcp@" + this.host + ":" + this.port;
+            return (this.name || "modbustcp@" + this.host + ":" + this.port);
         }
     });
 </script>
@@ -169,6 +229,7 @@
         color: '#E9967A',
         defaults: {
             name: {value: ""},
+            topic: {value: ""},
             dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},            
             server: {value: "", type: "modbustcp-server"}
@@ -190,22 +251,25 @@
         color: '#E9967A',
         defaults: {
             name: {value: ""},
+            topic: {value: ""},
             dataType: {value: "", required: true},
             adr: {value: "", required: true, validate: RED.validators.number()},
             quantity: {value: "", required: true, validate: RED.validators.number()},
             rate: {
             	value: "", required: true, validate: function (v) {
-            		return v > 0
+            		return v >= 0
             	}
             },
             rateUnit: {
             	value: "", required: true, validate: function (v) {
             		return "ms" == v || "s" == v || "m" == v || "h" == v 
             	}
-            },                     
-            server: {value: "", type: "modbustcp-server"}
+            },
+            server: {value: "", type: "modbustcp-server"},
+            ieeeType: {value: "off", required: true},
+            ieeeBE: {value: true, required: true}
         },
-        inputs: 0,
+        inputs: 1,
         outputs: 1,
         icon: "bridge.png",        
         paletteLabel: "modbustcp",
