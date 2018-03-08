@@ -23,9 +23,9 @@ In addition, you can pass in a msg with one or more payload settings to initiate
 
 ```json
 msg.payload = {
-    "name": Name1, // Should be a unique name
-    "topic": topic1, // Override default topic 
-    "dataType": FC3, // can be format 3, "FC3", or "Coil"
+    "name": "Name1", // Should be a unique name
+    "topic": "topic1", // Override default topic 
+    "dataType": "FC3", // can be format 3, "FC3", or "Coil"
     "address": 0, // starting address
     "quantity": 4, // # of units to read
     "ieeeType": "off", // valid values are "off", "single" or "double"
