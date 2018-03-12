@@ -21,7 +21,7 @@ Run the following command in the root directory of your Node-RED install
 ### API
 In addition, you can pass in a msg with one or more payload settings to initiate additional modbus read events. 
 
-```json
+```javascript
 msg.payload = {
     "name": "Name1", // Should be a unique name
     "topic": "topic1", // Override default topic 
@@ -78,7 +78,7 @@ In addition to passing in a payload value for writing, you can also pass in the 
 * address
 
 example message input:
-```json
+```javascript
 msg = {
     address: 8,
     dataType: "Coil",
