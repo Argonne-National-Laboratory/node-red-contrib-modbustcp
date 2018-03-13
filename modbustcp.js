@@ -276,7 +276,13 @@ module.exports = function(RED) {
     this.rateUnit = config.rateUnit;
     this.connection = null;
     this.ieeeType = config.ieeeType || 'off';
-    this.ieeeBE = config.ieeeBE || true;
+    //this.ieeeBE = 
+    if (config.hasOwnProperty('ieeeBE')) {
+      this.ieeeBE = (config.ieeeBE === "true");
+    }
+    else{
+      this.ieeeBE = true;
+    }
 
     var node = this;
 
@@ -458,7 +464,7 @@ module.exports = function(RED) {
 
     function numdouble(nums, isBE) 
     {
-        // console.log('Got a numdouble');
+        //console.log('Got a numdouble:', isBE);
         var x = 0;
         var data = [];
 
@@ -476,7 +482,7 @@ module.exports = function(RED) {
           }          
         }
 
-        for (var i=0; i<nums.length; i=i+2) {
+        for (var i=0; i<nums.length; i=i+4) {
           var num = [];
           //currently setup for Big Endian (swap i and i+1 for Little Endian)
           num[0] =   nums[i + offset[0]] >> 8;
