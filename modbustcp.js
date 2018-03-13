@@ -453,11 +453,10 @@ module.exports = function(RED) {
           z = (isBE) ? i + 1 : i;
           num[2] = nums[z] >> 8;
           num[3] = (nums[z] & 0x00FF);
-          data[x] = ieee.fromIEEE754Single(num);
+          data[x] = ieee.unpackF32(num.reverse());
           // console.log(data[x]);
           x++;
         }
-        // console.log(data);
         return data;
 
     }
@@ -493,7 +492,7 @@ module.exports = function(RED) {
           num[5] = (nums[i+ offset[2]] & 0x00FF);
           num[6] = nums[i+ offset[3]] >> 8;
           num[7] = (nums[i+ offset[3]] & 0x00FF);
-          data[x] = ieee.fromIEEE754Double(num);
+          data[x] = ieee.unpackF64(num.reverse());
           x++;
         }
         return data;

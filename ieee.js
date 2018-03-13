@@ -4,120 +4,131 @@
 //
 // http://cautionsingularityahead.blogspot.com/2010/04/javascript-and-ieee754-redux.html
 
-function toIEEE754(v, ebits, fbits) {
+var LN2 = Math.LN2,
+abs = Math.abs,
+floor = Math.floor,
+log = Math.log,
+max = Math.max,
+min = Math.min,
+pow = Math.pow,
+round = Math.round;
+
+function unpackF64(b) { return unpackIEEE754(b, 11, 52); }
+function packF64(v) { return packIEEE754(v, 11, 52); }
+function unpackF32(b) { return unpackIEEE754(b, 8, 23); }
+function packF32(v) { return packIEEE754(v, 8, 23); }
+
+function packIEEE754(v, ebits, fbits) {
 
   var bias = (1 << (ebits - 1)) - 1;
 
+  function roundToEven(n) {
+    var w = floor(n), f = n - w;
+    if (f < 0.5)
+      return w;
+    if (f > 0.5)
+      return w + 1;
+    return w % 2 ? w + 1 : w;
+  }
+
   // Compute sign, exponent, fraction
   var s, e, f;
-  if (isNaN(v)) {
-    e = (1 << bias) - 1; f = 1; s = 0;
-  }
-  else if (v === Infinity || v === -Infinity) {
-    e = (1 << bias) - 1; f = 0; s = (v < 0) ? 1 : 0;
-  }
-  else if (v === 0) {
+  if (v !== v) {
+    // NaN
+    // http://dev.w3.org/2006/webapi/WebIDL/#es-type-mapping
+    e = (1 << ebits) - 1; f = pow(2, fbits - 1); s = 0;
+  } else if (v === Infinity || v === -Infinity) {
+    e = (1 << ebits) - 1; f = 0; s = (v < 0) ? 1 : 0;
+  } else if (v === 0) {
     e = 0; f = 0; s = (1 / v === -Infinity) ? 1 : 0;
-  }
-  else {
+  } else {
     s = v < 0;
-    v = Math.abs(v);
+    v = abs(v);
 
-    if (v >= Math.pow(2,
-      1 - bias)) {
-      var ln = Math.min(Math.floor(Math.log(v) / Math.LN2), bias);
-      e = ln + bias;
-      f = v * Math.pow(2, fbits - ln) - Math.pow(2, fbits);
-    }
-    else {
+    if (v >= pow(2, 1 - bias)) {
+      // Normalized
+      e = min(floor(log(v) / LN2), 1023);
+      var significand = v / pow(2, e);
+      if (significand < 1) {
+        e -= 1;
+        significand *= 2;
+      }
+      if (significand >= 2) {
+        e += 1;
+        significand /= 2;
+      }
+      var d = pow(2, fbits);
+      f = roundToEven(significand * d) - d;
+      e += bias;
+      if (f / d >= 1) {
+        e += 1;
+        f = 0;
+      }
+      if (e > 2 * bias) {
+        // Overflow
+        e = (1 << ebits) - 1;
+        f = 0;
+      }
+    } else {
+      // Denormalized
       e = 0;
-      f = v / Math.pow(2,
-        1 - bias - fbits);
+      f = roundToEven(v / pow(2, 1 - bias - fbits));
     }
   }
+
   // Pack sign, exponent, fraction
-  var i, bits = [];
-  for (i = fbits; i; i -= 1) {
-    bits.push(f % 2 ? 1 : 0); f = Math.floor(f / 2);
-  }
-  for (i = ebits; i; i -= 1) {
-    bits.push(e % 2 ? 1 : 0); e = Math.floor(e / 2);
-  }
+  var bits = [], i;
+  for (i = fbits; i; i -= 1) { bits.push(f % 2 ? 1 : 0); f = floor(f / 2); }
+  for (i = ebits; i; i -= 1) { bits.push(e % 2 ? 1 : 0); e = floor(e / 2); }
   bits.push(s ? 1 : 0);
   bits.reverse();
   var str = bits.join('');
+
   // Bits to bytes
   var bytes = [];
   while (str.length) {
-    bytes.push(parseInt(str.substring(0,
-      8),
-      2));
+    bytes.unshift(parseInt(str.substring(0, 8), 2));
     str = str.substring(8);
   }
   return bytes;
 }
 
-function fromIEEE754(bytes, ebits, fbits) {
+function unpackIEEE754(bytes, ebits, fbits) {
   // Bytes to bits
-  var bits = [];
-  for (var i = bytes.length; i; i -= 1) {
-    var byte = bytes[i - 1
-    ];
-    for (var j = 8; j; j -= 1) {
-      bits.push(byte % 2 ? 1 : 0); byte = byte >> 1;
+  var bits = [], i, j, b, str,
+      bias, s, e, f;
+      // console.log({bytes});
+      // console.log('bytes[0]:',bytes[0]);
+  for (i = 0; i < bytes.length; ++i) {
+    b = bytes[i];
+    for (j = 8; j; j -= 1) {
+      bits.push(b % 2 ? 1 : 0); b = b >> 1;
     }
   }
   bits.reverse();
-  var str = bits.join('');
+  str = bits.join('');
+  // console.log(str);
   // Unpack sign, exponent, fraction
-  var bias = (1 << (ebits - 1)) - 1;
-  var s = parseInt(str.substring(0,1),2) ? -1 : 1;
-  var e = parseInt(str.substring(1,1 + ebits),2);
-  var f = parseInt(str.substring(1 + ebits),2);
+  bias = (1 << (ebits - 1)) - 1;
+  s = parseInt(str.substring(0, 1), 2) ? -1 : 1;
+  e = parseInt(str.substring(1, 1 + ebits), 2);
+  f = parseInt(str.substring(1 + ebits), 2);
+
   // Produce number
   if (e === (1 << ebits) - 1) {
     return f !== 0 ? NaN : s * Infinity;
-  }
-  else if (e > 0) {
-    return s * Math.pow(2, e - bias) * (1 + f / Math.pow(2, fbits));
-  }
-  else if (f !== 0) {
-    return s * Math.pow(2, -(bias - 1))* (f / Math.pow(2, fbits));
-  }
-  else {
-    return s * 0;
+  } else if (e > 0) {
+    // Normalized
+    return s * pow(2, e - bias) * (1 + f / pow(2, fbits));
+  } else if (f !== 0) {
+    // Denormalized
+    return s * pow(2, -(bias - 1)) * (f / pow(2, fbits));
+  } else {
+    return s < 0 ? -0 : 0;
   }
 }
 
-function fromIEEE754Double(b) {
-  return fromIEEE754(b,
-    11,
-    52);
-}
-function toIEEE754Double(v) {
-  return toIEEE754(v,11,52);
-}
-function fromIEEE754Single(b) {
-  return fromIEEE754(b,8,23);
-}
-function toIEEE754Single(v) {
-  return toIEEE754(v,
-    8,
-    23);
-}
-// Convert array of octets to string binary representation
-// by bartaz
-
-// function toIEEE754DoubleString(v) {
-//   return toIEEE754Double(v)
-//     .map(function (n) {
-//       for (n = n.toString(2); n.length < 8; n = "0" + n); 
-//       return n
-//     })
-//     .join('')
-//     .replace(/(.)(.{11}) (.{52}) /,"$1 $2 $3")
-// }
-
-exports.fromIEEE754Single = fromIEEE754Single;
-exports.fromIEEE754Double = fromIEEE754Double;
-
+exports.unpackF64 = unpackF64;
+exports.unpackF32 = unpackF32;
+exports.packF64 = packF64;
+exports.packF32 = packF32;
