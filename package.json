@@ -1,10 +1,11 @@
 {
   "name": "node-red-contrib-modbustcp",
-  "version": "1.1.2",
+  "version": "1.2.1",
   "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
   "main": "modbustcp.js",
   "dependencies": {
     "jsmodbus": "^2.4.0",
+    "npm": "^5.7.1",
     "serialport": "^6.0.5"
   },
   "devDependencies": {},

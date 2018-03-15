@@ -276,7 +276,13 @@ module.exports = function(RED) {
     this.rateUnit = config.rateUnit;
     this.connection = null;
     this.ieeeType = config.ieeeType || 'off';
-    this.ieeeBE = config.ieeeBE || true;
+    //this.ieeeBE = 
+    if (config.hasOwnProperty('ieeeBE')) {
+      this.ieeeBE = (config.ieeeBE === "true");
+    }
+    else{
+      this.ieeeBE = true;
+    }
 
     var node = this;
 
@@ -447,18 +453,17 @@ module.exports = function(RED) {
           z = (isBE) ? i + 1 : i;
           num[2] = nums[z] >> 8;
           num[3] = (nums[z] & 0x00FF);
-          data[x] = ieee.fromIEEE754Single(num);
+          data[x] = ieee.unpackF32(num.reverse());
           // console.log(data[x]);
           x++;
         }
-        // console.log(data);
         return data;
 
     }
 
     function numdouble(nums, isBE) 
     {
-        // console.log('Got a numdouble');
+        //console.log('Got a numdouble:', isBE);
         var x = 0;
         var data = [];
 
@@ -476,7 +481,7 @@ module.exports = function(RED) {
           }          
         }
 
-        for (var i=0; i<nums.length; i=i+2) {
+        for (var i=0; i<nums.length; i=i+4) {
           var num = [];
           //currently setup for Big Endian (swap i and i+1 for Little Endian)
           num[0] =   nums[i + offset[0]] >> 8;
@@ -487,7 +492,7 @@ module.exports = function(RED) {
           num[5] = (nums[i+ offset[2]] & 0x00FF);
           num[6] = nums[i+ offset[3]] >> 8;
           num[7] = (nums[i+ offset[3]] & 0x00FF);
-          data[x] = ieee.fromIEEE754Double(num);
+          data[x] = ieee.unpackF64(num.reverse());
           x++;
         }
         return data;
