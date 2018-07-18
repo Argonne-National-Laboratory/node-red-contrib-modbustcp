@@ -1,11 +1,12 @@
 {
   "name": "node-red-contrib-modbustcp",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
-  "main": "./dist/modbustcp.js",
+  "main": "modbustcp.js",
   "dependencies": {
     "debug": "^3.1.0",
-    "jsmodbus": "^3.0.0"
+    "jsmodbus": "^3.0.0",
+    "node-net-reconnect": "^0.1.1"
   },
   "devDependencies": {
     "@types/node": "^10.3.4",
@@ -13,7 +14,10 @@
   },
   "scripts": {
     "test": "echo \\\"Error: no test specified\\\" && exit 1",
-    "mon": "tsc && nodemon --exec \"node-red\" --ext js,html"
+    "mon": "concurrently \"tsc -w\" \"nodemon --exec \"node-red\" --ext js,html\"",
+    "tsc": "tsc -w",
+    "nm": "nodemon --exec \"node-red\" --ext js,html",
+    "mon2": "concurrently npm:tsc npm:nm"
   },
   "engine": {
     "node": ">=7.5.0"
@@ -30,7 +34,7 @@
   ],
   "node-red": {
     "nodes": {
-      "modbus tcp": "./dist/modbustcp.js"
+      "modbus tcp": "modbustcp.js"
     }
   },
   "author": "Jason D. Harper",

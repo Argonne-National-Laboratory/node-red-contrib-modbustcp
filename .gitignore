@@ -3,3 +3,4 @@ npm-debug.log
 .npmignore
 scratch
 dist
+.bak
