@@ -42,6 +42,7 @@ let timestamplog = helpers.log;
 let calcRate = helpers.calcRate;
 //import * as emitter from 'events';
 let emitter = require('events');
+let compver = require('compare-versions');
 
 module.exports = function(RED) {
   let Modbus = require("jsmodbus");
@@ -90,14 +91,30 @@ module.exports = function(RED) {
       }
       
       node.modbusconn = new Modbus.client.TCP(socket,Number(node.unit_id));
-
+      
       const _onConnectEvent = () => {
         debug(`socket connected to ${socket.remoteAddress}:${socket.remotePort}`);
         debug(`socket connected from ${socket.localAddress}:${socket.localPort}`)
-        // this._state = 'connected';
-        this._state = 'ready';
+        
+        // Only node >= 9.11.0 will emit a ready, so force a 
+        // ready on connect for earlier releases.
+
+        if (compver('9.11.0',process.versions.node) >= 0){
+          this._state = 'connected';
+        }
+        else{
+          this._state = 'ready';
+        }
+
       }
       
+      const _onReadyEvent = () => {
+        // We only get a 'ready' emitted for 
+        // version 9.11.0 of node and higher
+        this._state = 'ready';
+        debug('socket ready');
+      }
+
       const _onCloseEvent = (hadError) => {
         debug('socket closed. HadError = ', hadError);
         this._state = 'disconnected';
@@ -111,10 +128,6 @@ module.exports = function(RED) {
         //socket.connect(consettings);
       }
       
-      const _onReadyEvent = () => {
-        this._state = 'ready';
-        debug('socket ready');
-      }
       
       const _onTimeoutEvent = () => {
         node.warn('socket timeout');
@@ -407,7 +420,7 @@ module.exports = function(RED) {
       // Do nothing if we are not connected
       if (modbusTCPServer.getState() !== 'ready') return;
       
-      set_connected_polling();
+      set_connected_polling(settings.dataType);
       switch (settings.dataType) {
         // accept either a #, a name (Coil), or an FC string (FC1, FC 1)
         // (Maybe should do case insensitive compare?)
@@ -507,6 +520,7 @@ module.exports = function(RED) {
     // Set Node Status indicators
     //
 
+
     function set_connected_waiting() {
       node.status({
         fill: "green",
@@ -515,11 +529,11 @@ module.exports = function(RED) {
       });
     }
 
-    function set_connected_polling() {
+    function set_connected_polling(fcType) {
       node.status({ 
         fill: "yellow", 
         shape: "dot", 
-        text: "Polling" 
+        text: `Polling: ${fcType}` 
       });
     }
 

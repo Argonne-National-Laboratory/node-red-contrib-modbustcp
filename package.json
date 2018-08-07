@@ -4,6 +4,7 @@
   "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
   "main": "modbustcp.js",
   "dependencies": {
+    "compare-versions": "^3.3.0",
     "debug": "^3.1.0",
     "jsmodbus": "^3.0.0",
     "node-net-reconnect": "^0.1.1"
