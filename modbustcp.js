@@ -40,6 +40,7 @@ let numdouble = helpers.numdouble;
 let numfloat = helpers.numfloat;
 let timestamplog = helpers.log;
 let calcRate = helpers.calcRate;
+
 //import * as emitter from 'events';
 let emitter = require('events');
 let compver = require('compare-versions');
@@ -99,7 +100,7 @@ module.exports = function(RED) {
         // Only node >= 9.11.0 will emit a ready, so force a 
         // ready on connect for earlier releases.
 
-        if (compver('9.11.0',process.versions.node) >= 0){
+        if (compver(process.versions.node,'9.11.0') >= 0){
           this._state = 'connected';
         }
         else{
@@ -259,8 +260,13 @@ module.exports = function(RED) {
       }
             
     }; //onReadyEvent
-    
-    socket.on("connect", node.onConnectEvent);
+
+    if (compver(process.versions.node,'9.11.0') >= 0){
+      socket.on("connect", node.onConnectEvent);
+    } else {
+      socket.on("connect", node.onReadyEvent);
+    }
+
     socket.on("ready", node.onReadyEvent);
     socket.on("close", node.onCloseEvent);
 
@@ -280,7 +286,12 @@ module.exports = function(RED) {
           clearInterval(timers[property]);
         }
       }
-      socket.removeListener("connect", node.onConnectEvent);
+   
+      if (compver(process.versions.node,'9.11.0') >= 0){
+        socket.removeListener("connect", node.onConnectEvent);
+      } else {
+        socket.removeListener("connect", node.onReadyEvent);
+      }
       socket.removeListener("close", node.onCloseEvent);
       socket.removeListener("ready", node.onReadyEvent);
       //socket.end();
