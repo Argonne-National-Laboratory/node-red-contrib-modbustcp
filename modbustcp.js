@@ -590,7 +590,7 @@ module.exports = function(RED) {
     };
 
     node.onConnectEvent = function() {
-      node.status({ fill: "blue", shape: "circle", text: "Connected" });
+      node.status({ fill: "green", shape: "circle", text: "Connected" });
     };
 
     node.onReadyEvent = function() {
