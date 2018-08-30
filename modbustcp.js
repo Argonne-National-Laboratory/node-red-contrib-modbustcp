@@ -29,23 +29,35 @@
  * limitations under the License.
  **/
 
-function timestamp() {
-  return new Date()
-    .toISOString()
-    .replace(/T/, " ") // replace T with a space
-    .replace(/\..+/, "");
-}
-function log(msg, args) {
-  if (args) console.log(timestamp() + ": " + msg, args);
-  else console.log(timestamp() + ": " + msg);
-}
+//@ts-check
+
+//import { numdouble, numfloat} from './helpers';
+// import { timestamp, log as timestamplog, calcRate} from './helpers';
+
+let helpers = require('./helpers');
+
+let numdouble = helpers.numdouble;
+let numfloat = helpers.numfloat;
+let timestamplog = helpers.log;
+let calcRate = helpers.calcRate;
+
+//import * as emitter from 'events';
+let emitter = require('events');
+let compver = require('compare-versions');
 
 module.exports = function(RED) {
-  var modbus = require("jsmodbus");
-  var util = require("util");
-  var ieee = require("./ieee");
-  var util = require("util");
-
+  let Modbus = require("jsmodbus");
+  let net = require('net');
+  let util = require("util");
+  
+  let debug = require('debug')('anl:node-red-modbustcp');
+  
+  process.on('uncaughtException',(err) => {
+    console.log(`Uncaught Exception: ${err.name}`);
+    console.log(`Stack: ${err.stack}`);
+  });
+  
+  
   function ModbusTCPServerNode(config) {
     RED.nodes.createNode(this, config);
     this.host = config.host;
@@ -54,216 +66,107 @@ module.exports = function(RED) {
     this.reconnecttimeout = config.reconnecttimeout;
     this.unit_id = config.unit_id;
     this.modbusconn = null;
-    var node = this;
-    var consettings = {
+    
+    this._state = 'disconnected';
+    
+    let Reconnect = require('node-net-reconnect/src/index.js')
+    
+    let node = this;
+    
+    //@ts-
+    let consettings = {
       host: node.host,
       port: node.port,
-      unitId: Number(node.unit_id),
-      timeout: 15000
-      /*'logEnabled' : true,
-                    'logLevel' : 'debug'*/
     };
+    
+    let recon;
 
-    node.initializeModbusTCPConnection = function(handler) {
-      log(
-        "Connecting to modbustcp slave at " +
-          node.host +
-          ":" +
-          node.port +
-          " unit_id: " +
-          node.unit_id
-      );
+    node.initializeModbusTCPConnection = function(socket, onConnect,handler) {
+      timestamplog( `Connecting to modbustcp slave at ${node.host}:${node.port} unit_id: ${node.unit_id}`);
 
       if (Number(node.reconnecttimeout) > 0) {
         consettings.autoReconnect = true;
         consettings.reconnectTimeout = Number(node.reconnecttimeout) * 1000;
+        consettings.retryAlways = true;
+        consettings.retryTime = Number(node.reconnecttimeout) * 1000;
+      }
+      
+      node.modbusconn = new Modbus.client.TCP(socket,Number(node.unit_id));
+      
+      const _onConnectEvent = () => {
+        debug(`socket connected to ${socket.remoteAddress}:${socket.remotePort}`);
+        debug(`socket connected from ${socket.localAddress}:${socket.localPort}`)
+        
+        // Only node >= 9.11.0 will emit a ready, so force a 
+        // ready on connect for earlier releases.
+
+        if (compver(process.versions.node,'9.11.0') >= 0){
+          this._state = 'connected';
+        }
+        else{
+          this._state = 'ready';
+        }
+
+      }
+      
+      const _onReadyEvent = () => {
+        // We only get a 'ready' emitted for 
+        // version 9.11.0 of node and higher
+        this._state = 'ready';
+        debug('socket ready');
       }
 
-      node.modbusconn = modbus.client.tcp.complete(consettings);
-
-      node.modbusconn.on("error", function(err) {
-        node.error("ModbusTCPConnection: " + util.inspect(err, false, null));
-      });
-
-      node.modbusconn.connect();
+      const _onCloseEvent = (hadError) => {
+        debug('socket closed. HadError = ', hadError);
+        this._state = 'disconnected';
+      }
+      
+      const _onErrorEvent = (err) => {
+        node.error(`socket error: ${err.name}: ${err.message}`)
+        debug(`socket error: ${err.name}: ${err.message}`)
+        this._state = 'error';
+        socket.destroy();
+        //socket.connect(consettings);
+      }
+      
+      
+      const _onTimeoutEvent = () => {
+        node.warn('socket timeout');
+        debug('socket timeout');
+      }
+        
+      socket.on('connect', _onConnectEvent);
+      socket.on('ready', _onReadyEvent);
+      socket.on('close', _onCloseEvent);
+      socket.on('error', _onErrorEvent);
+      socket.on('timeout', _onTimeoutEvent );
+    
+      recon = new Reconnect(socket,consettings);
+    
+      socket.connect(consettings);
 
       handler(node.modbusconn);
+
+      node.on("close", function() {
+        timestamplog(`Disconnecting from modbustcp slave at ${socket.remoteAddress}:${socket.remotePort}`);
+        socket.removeListener('connect', _onConnectEvent);
+        socket.removeListener('ready', _onReadyEvent);
+        socket.removeListener('close', _onCloseEvent);
+        socket.removeListener('error', _onErrorEvent);
+        socket.removeListener('timeout', _onTimeoutEvent );
+        recon.end();
+      });
+  
+
     };
 
-    node.on("close", function() {
-      log(
-        "Disconnecting from modbustcp slave at " + node.host + ":" + node.port
-      );
-      node.modbusconn.close();
-      node.modbusconn = null;
-    });
+    node.getState = function() {
+      return this._state;
+    }
+
   }
 
   RED.nodes.registerType("modbustcp-server", ModbusTCPServerNode);
-
-  function ModbusTCPWrite(config) {
-    RED.nodes.createNode(this, config);
-    this.name = config.name;
-    this.dataType = config.dataType;
-    this.adr = Number(config.adr);
-    this.quantity = config.quantity;
-    var node = this;
-    var modbusTCPServer = RED.nodes.getNode(config.server);
-
-    node.receiveEvent1 = function() {
-      log(node.name + " was Disconnected");
-      node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
-    };
-
-    node.receiveEvent2 = function() {
-      node.status({ fill: "green", shape: "dot", text: "Connected" });
-    };
-
-    modbusTCPServer.initializeModbusTCPConnection(function(connection) {
-      node.connection = connection;
-      node.connection.on("close", node.receiveEvent1);
-      node.connection.on("connect", node.receiveEvent2);
-    });
-
-    function set_successful_write(resp) {
-      node.status({
-        fill: "green",
-        shape: "dot",
-        text: "Successfully Written"
-      });
-    }
-
-    function modbus_error_check(err) {
-      if (err) {
-        node.status({ fill: "red", shape: "dot", text: "Error" });
-        log(err);
-        node.error(node.name + ": " + JSON.stringify(err));
-        return false;
-      }
-      return true;
-    }
-
-    node.on("input", msg => {
-      let address;
-      let dataType;
-
-      if (node.connection.getState() === "closed") {
-        if (!node.connection.autoReconnect) {
-          node.connection.connect();
-        }
-      }
-
-      if (!(msg && msg.hasOwnProperty("payload"))) return;
-
-      if (msg.payload == null) {
-        node.error(node.name + ": " + "Invalid msg.payload!");
-        return;
-      }
-
-      // Check to see if the incoming message overrides the address
-      if (msg.hasOwnProperty("address") && !isNaN(msg.address)) {
-        address = Number(msg.address);
-      } else {
-        address = node.adr;
-      }
-
-      // Check to see if the incoming message overrides the dataTpye
-      if (msg.hasOwnProperty("dataType") ) {
-        dataType = msg.datatype;
-      } else {
-        dataType = node.dataType;
-      }
-
-      node.status({});
-
-      switch (dataType) {
-        case 5:
-        case "FC5":
-        case "FC 5":
-        case "Coil": //FC: 5
-          node.connection
-            .writeSingleCoil(address, Number(msg.payload))
-            .then(function(resp, err) {
-              if (modbus_error_check(err) && resp) {
-                set_successful_write(resp);
-              }
-            });
-
-          break;
-        case 6:
-        case "FC6":
-        case "FC 6":
-        case "HoldingRegister": //FC: 6
-          node.connection
-            .writeSingleRegister(address, Number(msg.payload))
-            .then(function(resp, err) {
-              if (modbus_error_check(err) && resp) {
-                set_successful_write(resp);
-              }
-            });
-
-          break;
-        case 15:
-        case "FC15":
-        case "FC 15":
-        case "Coils": //FC: 15
-          if (Array.isArray(msg.payload)) {
-            var values = [];
-            for (var i = 0; i < msg.payload.length; i++) {
-              values.push(parseInt(msg.payload[i]));
-            }
-          } else {
-            node.error(node.name + ": " + "msg.payload not an array");
-            break;
-          }
-          node.connection
-            .writeMultipleCoils(address, values)
-            .then(function(resp, err) {
-              if (modbus_error_check(err) && resp) {
-                set_successful_write(resp);
-              }
-            });
-
-          break;
-
-        case 16:
-        case "FC16":
-        case "FC 16":
-        case "HoldingRegisters": //FC: 16
-          if (Array.isArray(msg.payload)) {
-            var values = [];
-            for (i = 0; i < msg.payload.length; i++) {
-              values.push(parseInt(msg.payload[i]));
-            }
-          } else {
-            node.error(node.name + ": " + "msg.payload not an array");
-            break;
-          }
-          node.connection
-            .writeMultipleRegisters(address, values)
-            .then(function(resp, err) {
-              if (modbus_error_check(err) && resp) {
-                set_successful_write(resp);
-              }
-            });
-
-          break;
-
-        default:
-          break;
-      }
-    });
-
-    node.on("close", function() {
-      log(node.name + ":" + "Closing");
-      node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
-      node.connection.removeListener("connect", node.receiveEvent2);
-      node.connection.removeListener("close", node.receiveEvent1);
-      node.connection.close();
-    });
-  }
-
-  RED.nodes.registerType("modbustcp-write", ModbusTCPWrite);
 
   function ModbusTCPRead(config) {
     RED.nodes.createNode(this, config);
@@ -284,21 +187,34 @@ module.exports = function(RED) {
       this.ieeeBE = true;
     }
 
+    const _DISCONNECTED = 0;
+    const _CONNECTED = 1;
+    const ee = new emitter.EventEmitter();
+
+    let socket = new net.Socket();
+
+    let bigArray = [];
+
     var node = this;
 
-
     var modbusTCPServer = RED.nodes.getNode(config.server);
-    var timerID;
 
-    let timers = {};
-    node.receiveEvent1 = function() {
-      log(node.name + " was disconnected or was unable to connect");
+    // Timers
+    let timerID; // used for single node (non-inject) modbus event
+    let timers = {}; // used as a collection of running timers externally injected
+
+    node.onCloseEvent = function() {
+      timestamplog(node.name + " was disconnected or was unable to connect");
       node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
       clearInterval(timerID);
       timerID = null;
     };
 
-    node.receiveEvent2 = function() {
+    node.onConnectEvent = function() {
+    };
+
+    node.onReadyEvent = function(){
+
       let settings = {
         name: node.name || "",
         topic: node.topic || node.name,
@@ -313,65 +229,162 @@ module.exports = function(RED) {
         shape: "dot",
         text: "Connected"
       });
+
+      ee.once('flush',flushArray);
+
       clearInterval(timerID);
       timerID = null;
+
       // Ignore standalone mode if rate is 0 and wait for flow input
       if (node.rate != 0){
-        ModbusMaster(settings); //fire once at start
+
+        if (modbusTCPServer.getState() === 'ready'){
+          bigArray.push(settings);
+          ee.emit('flush');
+          //ModbusMaster(settings); //fire once at start
+        }
+        else debug("socket state: %s",modbusTCPServer.getState());
+
         if (!timerID) {
           timerID = setInterval(function() {
             settings.timerID = timerID;
-            ModbusMaster(settings);
-          }, calcRate());
+            if (modbusTCPServer.getState() === 'ready'){
+              bigArray.push(settings);
+              ee.emit('flush');
+              //ModbusMaster(settings);
+            }
+            else debug("socket state: %s",modbusTCPServer.getState());
+            }, calcRate(node.rate, node.rateUnit));
         }
   
-      } 
-    };
+      }
+            
+    }; //onReadyEvent
 
-    modbusTCPServer.initializeModbusTCPConnection(function(connection) {
+    if (compver(process.versions.node,'9.11.0') >= 0){
+      socket.on("connect", node.onConnectEvent);
+    } else {
+      socket.on("connect", node.onReadyEvent);
+    }
+
+    socket.on("ready", node.onReadyEvent);
+    socket.on("close", node.onCloseEvent);
+
+    modbusTCPServer.initializeModbusTCPConnection(socket, node.onConnectEvent,function(connection) {
       node.connection = connection;
       node.status({ fill: "blue", shape: "dot", text: "Initiating....." });
-      node.connection.on("close", node.receiveEvent1);
-      node.connection.on("connect", node.receiveEvent2);
+    });
+
+    node.on("close", function() {
+      timestamplog(node.name + ":" + "Closing");
+
+      clearInterval(timerID);
+      timerID = null;
+
+      for (var property in timers){
+        if (timers.hasOwnProperty(property)){
+          clearInterval(timers[property]);
+        }
+      }
+   
+      if (compver(process.versions.node,'9.11.0') >= 0){
+        socket.removeListener("connect", node.onConnectEvent);
+      } else {
+        socket.removeListener("connect", node.onReadyEvent);
+      }
+      socket.removeListener("close", node.onCloseEvent);
+      socket.removeListener("ready", node.onReadyEvent);
+      //socket.end();
+      node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
+      //socket.close();
     });
 
     node.on("input", msg => {
 
       if (msg.hasOwnProperty('kill') && msg.kill === true){
         if (msg.hasOwnProperty('payload') && msg.payload.hasOwnProperty('name') && msg.payload.name ){
-          clearInterval(timers[msg.payload.name]);
-          return;
+          if (timers.hasOwnProperty(msg.payload.name)){
+            clearInterval(timers[msg.payload.name]);
+          }
         }
+        return;
       }
-      const SetupLoop = (params) => {
-        console.log('Starting Loop', params.name);
-        let settings = {
-          name: params.name || node.name || "",
-          topic: params.topic || msg.topic || node.topic || node.name,
-          adr: params.address || node.adr,
-          quantity: params.quantity || node.quantity,
-          dataType: params.dataType || node.dataType,
-          ieeeType: params.ieeeType || node.ieeeType,
-          ieeeBE: node.ieeeBE
-        };
 
-        if (params.hasOwnProperty('ieeeBE') && util.isBoolean(params.ieeeBE)){
-          settings.ieeeBE = params.ieeeBE;
+      const SetupLoop = (params) => {
+        // console.log('Starting Loop', params.name);
+
+        if (!params.hasOwnProperty('values')){
+          // has no values array, so create one;
+          params.values = [{
+            address: params.address,
+            quantity: params.quantity,
+            dataType: params.dataType,
+          }];
+          
+          if (params.hasOwnProperty('topic')){
+            params.values[0].topic = params.topic;
+          }
+          
+          if (params.hasOwnProperty('name')){
+            params.values[0].name = params.name;
+          }
+          if (params.hasOwnProperty('ieeeType')){
+            params.values[0].ieeeType = params.ieeeType;
+          }
+          if (params.hasOwnProperty('ieeeBE')){
+            params.values[0].ieeeBE = params.ieeeBE;
+          }
+          
         }
-  
-        if (settings.name && timers.hasOwnProperty(settings.name)){
-          clearInterval(timers[settings.name]);
+
+        async function processValues(values, name, interval){
+
+          values.forEach( value => {
+
+            let settings = {
+              name: value.name || name || "",
+              interval,
+              topic: value.topic || msg.topic || node.topic || node.name,
+              adr: value.address || node.adr,
+              quantity: value.quantity || node.quantity,
+              dataType: value.dataType || node.dataType,
+              ieeeType: value.ieeeType || node.ieeeType,
+              ieeeBE: node.ieeeBE
+            };
+
+            if (value.hasOwnProperty('ieeeBE') && util.isBoolean(value.ieeeBE)){
+              settings.ieeeBE = value.ieeeBE;
+            }
+
+
+            // only attempt to read if the connection is ready
+            if (modbusTCPServer.getState() === 'ready'){
+              bigArray.push(settings);
+              ee.emit('flush');
+              // ModbusMaster(settings); 
+            }
+            else debug("socket state: %s",modbusTCPServer.getState());
+
+          });
+
         }
-  
-        ModbusMaster(settings); // jumpstart
-  
+
+        if (params.name && timers.hasOwnProperty(params.name)){
+          // console.log('clearing old time',params.name);
+          clearInterval(timers[params.name]);
+        }
+
+        processValues(params.values, params.name, params.interval);
+
         let loopId = setInterval(function() {
-          settings.timerID = loopId;
-          ModbusMaster(settings);
+          //params.values.timerID = loopId;
+          processValues(params.values, params.name, params.interval);
+          //ModbusMaster(settings);
         }, params.interval || calcRate());
   
-        if (settings.name){
-          timers[settings.name] = loopId;
+        if (params.name){
+          timers[params.name] = loopId;
+          // console.log("Timers:", params.name);
         }
       }
 
@@ -386,12 +399,138 @@ module.exports = function(RED) {
       else{
         SetupLoop(p);
       }
-
+      
     });
+    
+
+    async function flushArray() {
+      try {
+        while(bigArray.length > 0){
+          let settings = bigArray.pop();
+          await ModbusMaster(settings);
+        }
+        ee.once('flush', flushArray);
+      }
+      catch(err){
+        let ts = new Date();
+        let errStr = util.inspect(err);
+        node.error(`${ts.toLocaleString()} Error: ${errStr}`);
+      }
+    }
+
+    async function ModbusMaster(settings) {
+      var msg = {};
+      let resp;
+
+      const address = Number(settings.adr);
+      const quantity = Number(settings.quantity);
+
+      msg.settings = settings;
+      msg.topic = settings.topic;
+
+      // Do nothing if we are not connected
+      if (modbusTCPServer.getState() !== 'ready') return;
+      
+      set_connected_polling(settings.dataType);
+      switch (settings.dataType) {
+        // accept either a #, a name (Coil), or an FC string (FC1, FC 1)
+        // (Maybe should do case insensitive compare?)
+        //
+        case 1:
+        case "FC1":
+        case "FC 1":
+        case "Coil": //FC: 1
+          try{
+            resp = await node.connection.readCoils(address, quantity)
+            set_connected_waiting();
+            msg.payload = resp.response.body.valuesAsArray.map( (val) => { return (val == 1) });
+            node.send(msg);
+          }
+          catch(e) {
+              modbus_error_check(e);
+              console.error(e);
+          };
+          break;
+        case 2:
+        case "FC2":
+        case "FC 2":
+        case "Input": //FC: 2
+          try{
+            resp = await node.connection.readDiscreteInputs(address, quantity);
+            set_connected_waiting();
+                // msg.payload = resp.coils; // array of discrete input values
+            msg.payload = resp.response.body.valuesAsArray.map( (val) => { return (val == 1) });
+            node.send(msg);
+          }catch(e) {
+              modbus_error_check(e);
+              console.error(e);
+          };            
+          break;
+        case 3:
+        case "FC3":
+        case "FC 3":            
+        case "HoldingRegister": //FC: 3
+          try{
+            resp = await node.connection.readHoldingRegisters(address, quantity);
+            set_connected_waiting();
+            // console.log('settings:', settings.ieeeType);
+            // console.log('Big End: ', settings.ieeeBE);
+            switch(settings.ieeeType){
+              case 'single':
+                msg.payload = numfloat(resp.response.body.valuesAsArray, settings.ieeeBE);
+                break;
+              case 'double':
+                msg.payload = numdouble(resp.response.body.valuesAsArray, settings.ieeeBE);
+                break;
+              case 'off':
+              default:
+                msg.payload = resp.response.body.valuesAsArray; // array of register values
+                break;
+            }
+            node.send(msg);
+          }
+          catch(e) {
+            modbus_error_check(e);
+            console.error(e);
+          };
+          break;
+        case 4:
+        case "FC4":
+        case "FC 4":
+        case "InputRegister": //FC: 4
+          try{
+            resp = await node.connection.readInputRegisters(address, quantity);
+            set_connected_waiting();
+            switch(settings.ieeeType){
+              case 'single':
+                msg.payload = numfloat(resp.response.body.valuesAsArray, settings.ieeeBE);
+                break;
+              case 'double':
+                msg.payload = numdouble(resp.response.body.valuesAsArray, settings.ieeeBE);
+                break;
+              case 'off':
+              default:
+                msg.payload = resp.response.body.valuesAsArray; // array of register values
+                break;
+            }
+            node.send(msg);
+          }
+          catch(e) {
+            modbus_error_check(e);
+            console.error(e);
+          };
+          break;
+        default:
+          node.status({ fill: "red", shape: "dot", text: `Invalid FC: ${settings.dataType}` });
+          debug(`Invalid FC: ${settings.dataType}`);
+          break;   
+      }
+    }
 
     //////////////////////////////////////////////////////////
     // Set Node Status indicators
     //
+
 
     function set_connected_waiting() {
       node.status({
@@ -401,214 +540,205 @@ module.exports = function(RED) {
       });
     }
 
-    function set_connected_polling() {
-      node.status({ fill: "yellow", shape: "dot", text: "Polling" });
+    function set_connected_polling(fcType) {
+      node.status({ 
+        fill: "yellow", 
+        shape: "dot", 
+        text: `Polling: ${fcType}` 
+      });
+    }
+
+    function modbus_error_check(err) {
+      if (err) {
+        node.status({ 
+          fill: "red", 
+          shape: "dot", 
+          text: "Error" 
+        });
+        
+        timestamplog(err);
+        
+        node.error("ModbusTCPClient: " + JSON.stringify(err));
+        socket.emit('error',{err: 'local error', message: 'Locally emitted error'});
+        return false;
+      }
+      return true;
+    }
+    
+    //
+    // END: Set Node Status indicators
+    //////////////////////////////////////////////////////////
+
+  }
+
+  RED.nodes.registerType("modbustcp-read", ModbusTCPRead);
+
+
+  function ModbusTCPWrite(config) {
+    RED.nodes.createNode(this, config);
+    this.name = config.name;
+    this.dataType = config.dataType;
+    this.adr = Number(config.adr);
+    this.quantity = config.quantity;
+    var node = this;
+    var modbusTCPServer = RED.nodes.getNode(config.server);
+    let socket = new net.Socket();
+
+    node.onCloseEvent = function() {
+      timestamplog(`${node.name} was Disconnected`);
+      node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
+    };
+
+    node.onConnectEvent = function() {
+      node.status({ fill: "green", shape: "circle", text: "Connected" });
+    };
+
+    node.onReadyEvent = function() {
+      node.status({fill: "green", shape: "dot", text: "Ready"})
+    }
+
+    socket.on("connect", node.onConnectEvent);
+    socket.on("close", node.onCloseEvent);
+    socket.on('ready', node.onReadyEvent);
+    
+
+    modbusTCPServer.initializeModbusTCPConnection(socket,node.onConnectEvent,function(connection) {
+      node.connection = connection;
+    });
+
+    function set_successful_write(resp) {
+      node.status({
+        fill: "green",
+        shape: "dot",
+        text: "Successfully Written"
+      });
     }
 
     function modbus_error_check(err) {
       if (err) {
         node.status({ fill: "red", shape: "dot", text: "Error" });
-        log(err);
-        node.error("ModbusTCPClient: " + JSON.stringify(err));
+        timestamplog(err);
+        node.error(node.name + ": " + JSON.stringify(err));
         return false;
       }
       return true;
     }
 
-    //
-    // END: Set Node Status indicators
-    //////////////////////////////////////////////////////////
+    node.on("input", msg => {
+      let address;
+      let dataType;
 
-    function calcRate() {
-      let rate;
-      switch (node.rateUnit) {
-        case "s":
-          rate = node.rate * 1000; //seconds
-          break;
-        case "m":
-          rate = node.rate * 60000; //minutes
-          break;
-        case "h":
-          rate = node.rate * 3600000; //hours
-          break;
-        case "ms":
-        default:
-          rate = node.rate; //milliseconds
-          break;
+      if (!(msg && msg.hasOwnProperty("payload"))) return;
+
+      if (msg.payload == null) {
+        node.error(node.name + ": Invalid msg.payload!");
+        return;
       }
-      return rate;
-    }
 
-    function numfloat(nums, isBE) 
-    {
-      // console.log('Got a numfloat', nums);
-      var x = 0;
-        var data = [];
-        for (var i=0; i<nums.length; i=i+2) {
-          var num = [];
-          //currently setup for Big Endian (swap i and i+1 for Little Endian)
-          var z = (isBE) ? i : i + 1;
-          num[0] =   nums[z] >> 8;
-          num[1] = (nums[z] & 0x00FF);
-          z = (isBE) ? i + 1 : i;
-          num[2] = nums[z] >> 8;
-          num[3] = (nums[z] & 0x00FF);
-          data[x] = ieee.unpackF32(num.reverse());
-          // console.log(data[x]);
-          x++;
-        }
-        return data;
+      // Check to see if the incoming message overrides the address
+      if (msg.hasOwnProperty("address") && !isNaN(msg.address)) {
+        address = Number(msg.address);
+      } else {
+        address = node.adr;
+      }
 
-    }
+      // Check to see if the incoming message overrides the dataTpye
+      if (msg.hasOwnProperty("dataType") ) {
+        dataType = msg.dataType;
+      } else {
+        dataType = node.dataType;
+      }
 
-    function numdouble(nums, isBE) 
-    {
-        //console.log('Got a numdouble:', isBE);
-        var x = 0;
-        var data = [];
+      node.status({});
 
-        var offset = [];
-        var z;
-
-        if (isBE != true){
-          for (z = 3; z >= 0; z=z-1){
-            offset.push(z);
+      switch (dataType) {
+        case 5:
+        case "FC5":
+        case "FC 5":
+        case "Coil": //FC: 5
+          debug('Writting Coil: ', msg.payload);
+          node.connection
+            .writeSingleCoil(address, Number(msg.payload))
+            .then(function(resp) {
+                set_successful_write(resp);
+            }).catch( function(e) {
+              modbus_error_check(e);
+              console.error(e);
+            });
+          break;
+        case 6:
+        case "FC6":
+        case "FC 6":
+        case "HoldingRegister": //FC: 6
+          node.connection
+            .writeSingleRegister(address, Number(msg.payload))
+            .then(function(resp) {
+              set_successful_write(resp);
+            }).catch( function(e) {
+              modbus_error_check(e);
+              console.error(e);
+            });
+        break;
+        case 15:
+        case "FC15":
+        case "FC 15":
+        case "Coils": //FC: 15
+          if (Array.isArray(msg.payload)) {
+            var values = [];
+            for (var i = 0; i < msg.payload.length; i++) {
+              values.push(parseInt(msg.payload[i]));
+            }
+          } else {
+            node.error(node.name + ": " + "msg.payload not an array");
+            break;
           }
-        }
-        else{
-          for (z = 0; z <= 3; z=z+1){
-            offset.push(z);
-          }          
-        }
-
-        for (var i=0; i<nums.length; i=i+4) {
-          var num = [];
-          //currently setup for Big Endian (swap i and i+1 for Little Endian)
-          num[0] =   nums[i + offset[0]] >> 8;
-          num[1] = (nums[i + offset[0]] & 0x00FF);
-          num[2] = nums[i+ offset[1]] >> 8;
-          num[3] = (nums[i+ offset[1]] & 0x00FF);
-          num[4] =   nums[i+ offset[2]] >> 8;
-          num[5] = (nums[i+ offset[2]] & 0x00FF);
-          num[6] = nums[i+ offset[3]] >> 8;
-          num[7] = (nums[i+ offset[3]] & 0x00FF);
-          data[x] = ieee.unpackF64(num.reverse());
-          x++;
-        }
-        return data;
-    }
-
-
-    function ModbusMaster(settings) {
-      var msg = {};
-      msg.settings = settings;
-      msg.topic = settings.topic;
-
-      switch (settings.dataType) {
-        // accept either a #, a name (Coil), or an FC string (FC1, FC 1)
-        // (Maybe should do case insensitive compare?)
-        //
-        case 1:
-        case "FC1":
-        case "FC 1":
-        case "Coil": //FC: 1
-          set_connected_polling();
           node.connection
-            .readCoils(Number(settings.adr), Number(settings.quantity))
-            .then(function(resp, error) {
-              if (modbus_error_check(error) && resp) {
-                set_connected_waiting();
-                msg.payload = resp.coils; // array of coil values
-                node.send(msg);
-              }
-            });
-          break;
-        case 2:
-        case "FC2":
-        case "FC 2":
-        case "Input": //FC: 2
-          set_connected_polling();
-          node.connection
-            .readDiscreteInputs(Number(settings.adr), Number(settings.quantity))
-            .then(function(resp, error) {
-              if (modbus_error_check(error) && resp) {
-                set_connected_waiting();
-                msg.payload = resp.coils; // array of discrete input values
-                node.send(msg);
-              }
-            });
-          break;
-        case 3:
-        case "FC3":
-        case "FC 3":            
-        case "HoldingRegister": //FC: 3
-          set_connected_polling();
-          node.connection
-            .readHoldingRegisters(
-              Number(settings.adr),
-              Number(settings.quantity)
-            )
-            .then(function(resp, error) {
-              if (modbus_error_check(error) && resp) {
-                set_connected_waiting();
-                // console.log('settings:', settings.ieeeType);
-                // console.log('Big End: ', settings.ieeeBE);
-                switch(settings.ieeeType){
-                  case 'single':
-                    msg.payload = numfloat(resp.register, settings.ieeeBE);
-                    break;
-                  case 'double':
-                    msg.payload = numdouble(resp.register, settings.ieeeBE);
-                    break;
-                  case 'off':
-                  default:
-                    msg.payload = resp.register; // array of register values
-                    break;
-                }
-                node.send(msg);
-              }
+            .writeMultipleCoils(address, values)
+            .then(function(resp) {
+              set_successful_write(resp);
+            }).catch( function(e) {
+              modbus_error_check(e);
+              console.error(e);
             });
           break;
 
-        case 4:
-        case "FC4":
-        case "FC 4":
-        case "InputRegister": //FC: 4
-          set_connected_polling();
+        case 16:
+        case "FC16":
+        case "FC 16":
+        case "HoldingRegisters": //FC: 16
+          if (Array.isArray(msg.payload)) {
+            var values = [];
+            for (i = 0; i < msg.payload.length; i++) {
+              values.push(parseInt(msg.payload[i]));
+            }
+          } else {
+            node.error(node.name + ": " + "msg.payload not an array");
+            break;
+          }
           node.connection
-            .readInputRegisters(Number(settings.adr), Number(settings.quantity))
-            .then(function(resp, error) {
-              if (modbus_error_check(error) && resp) {
-                set_connected_waiting();
-                switch(settings.ieeeType){
-                  case 'single':
-                    msg.payload = numfloat(resp.register, settings.ieeeBE);
-                    break;
-                  case 'double':
-                    msg.payload = numdouble(resp.register, settings.ieeeBE);
-                    break;
-                  case 'off':
-                  default:
-                    msg.payload = resp.register; // array of register values
-                    break;
-                }
-                node.send(msg);
-              }
+            .writeMultipleRegisters(address, values)
+            .then(function(resp) {
+              set_successful_write(resp);
+            }).catch( function(e) {
+              modbus_error_check(e);
+              console.error(e);
             });
+          break;
+
+        default:
           break;
       }
-    }
+    });
 
     node.on("close", function() {
-      log(node.name + ":" + "Closing");
-      clearInterval(timerID);
-      timerID = null;
-      node.connection.removeListener("connect", node.receiveEvent2);
-      node.connection.removeListener("close", node.receiveEvent1);
+      timestamplog(node.name + ":" + "Closing");
       node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
-      node.connection.close();
+      socket.removeListener("connect", node.onConnectEvent);
+      socket.removeListener("close", node.onCloseEvent);
+      socket.removeListener('ready', node.onReadyEvent);
     });
   }
 
-  RED.nodes.registerType("modbustcp-read", ModbusTCPRead);
+  RED.nodes.registerType("modbustcp-write", ModbusTCPWrite);
+
 };

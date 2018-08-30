@@ -1,20 +1,27 @@
 {
   "name": "node-red-contrib-modbustcp",
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "Node-RED nodes for communicating with a MODBUS TCP Server.",
   "main": "modbustcp.js",
   "dependencies": {
-    "jsmodbus": "^2.4.0",
-    "npm": "^5.7.1",
-    "serialport": "^6.0.5"
+    "compare-versions": "^3.3.0",
+    "debug": "^3.1.0",
+    "jsmodbus": "^3.0.0",
+    "node-net-reconnect": "^0.1.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@types/node": "^10.3.4",
+    "nodemon": "^1.17.5"
+  },
   "scripts": {
     "test": "echo \\\"Error: no test specified\\\" && exit 1",
-    "mon": "nodemon --exec \"node-red\" --ext js,html"
+    "mon": "concurrently \"tsc -w\" \"nodemon --exec \"node-red\" --ext js,html\"",
+    "tsc": "tsc -w",
+    "nm": "nodemon --exec \"node-red\" --ext js,html",
+    "mon2": "concurrently npm:tsc npm:nm"
   },
   "engine": {
-    "node": ">=4.5.0"
+    "node": ">=7.5.0"
   },
   "repository": {
     "type": "git",

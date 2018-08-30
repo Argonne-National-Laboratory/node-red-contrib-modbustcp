@@ -4,6 +4,9 @@
 //
 // http://cautionsingularityahead.blogspot.com/2010/04/javascript-and-ieee754-redux.html
 
+
+//@ts-check
+
 var LN2 = Math.LN2,
 abs = Math.abs,
 floor = Math.floor,
