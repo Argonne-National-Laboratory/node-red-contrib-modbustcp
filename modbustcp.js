@@ -628,11 +628,6 @@ module.exports = function(RED) {
       let address;
       let dataType;
 
-      // if (node.connection.getState() === "closed") {
-      //   if (!node.connection.autoReconnect) {
-      //     node.connection.connect();
-      //   }
-      // }
       if (!(msg && msg.hasOwnProperty("payload"))) return;
 
       if (msg.payload == null) {
@@ -649,7 +644,7 @@ module.exports = function(RED) {
 
       // Check to see if the incoming message overrides the dataTpye
       if (msg.hasOwnProperty("dataType") ) {
-        dataType = msg.datatype;
+        dataType = msg.dataType;
       } else {
         dataType = node.dataType;
       }
