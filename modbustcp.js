@@ -49,15 +49,15 @@ module.exports = function(RED) {
   let Modbus = require("jsmodbus");
   let net = require('net');
   let util = require("util");
-  
+
   let debug = require('debug')('anl:node-red-modbustcp');
-  
+
   process.on('uncaughtException',(err) => {
     console.log(`Uncaught Exception: ${err.name}`);
     console.log(`Stack: ${err.stack}`);
   });
-  
-  
+
+
   function ModbusTCPServerNode(config) {
     RED.nodes.createNode(this, config);
     this.host = config.host;
@@ -66,23 +66,23 @@ module.exports = function(RED) {
     this.reconnecttimeout = config.reconnecttimeout;
     this.unit_id = config.unit_id;
     this.modbusconn = null;
-    
+
     this._state = 'disconnected';
-    
+
     let Reconnect = require('node-net-reconnect/src/index.js')
-    
+
     let node = this;
-    
+
     //@ts-
     let consettings = {
       host: node.host,
       port: node.port,
     };
-    
+
     let recon;
 
     node.initializeModbusTCPConnection = function(socket, onConnect,handler) {
-      timestamplog( `Connecting to modbustcp slave at ${node.host}:${node.port} unit_id: ${node.unit_id}`);
+      node.log(`Connecting to modbustcp slave at ${node.host}:${node.port} unit_id: ${node.unit_id}`);
 
       if (Number(node.reconnecttimeout) > 0) {
         consettings.autoReconnect = true;
@@ -90,14 +90,15 @@ module.exports = function(RED) {
         consettings.retryAlways = true;
         consettings.retryTime = Number(node.reconnecttimeout) * 1000;
       }
-      
+
       node.modbusconn = new Modbus.client.TCP(socket,Number(node.unit_id));
-      
+      let lastSocketErrorMessage = "";
+
       const _onConnectEvent = () => {
         debug(`socket connected to ${socket.remoteAddress}:${socket.remotePort}`);
         debug(`socket connected from ${socket.localAddress}:${socket.localPort}`)
-        
-        // Only node >= 9.11.0 will emit a ready, so force a 
+
+        // Only node >= 9.11.0 will emit a ready, so force a
         // ready on connect for earlier releases.
 
         if (compver(process.versions.node,'9.11.0') >= 0){
@@ -106,11 +107,11 @@ module.exports = function(RED) {
         else{
           this._state = 'ready';
         }
-
+        lastSocketErrorMessage = ""; //clear the last error
       }
-      
+
       const _onReadyEvent = () => {
-        // We only get a 'ready' emitted for 
+        // We only get a 'ready' emitted for
         // version 9.11.0 of node and higher
         this._state = 'ready';
         debug('socket ready');
@@ -120,35 +121,39 @@ module.exports = function(RED) {
         debug('socket closed. HadError = ', hadError);
         this._state = 'disconnected';
       }
-      
+
       const _onErrorEvent = (err) => {
-        node.error(`socket error: ${err.name}: ${err.message}`)
+        if (lastSocketErrorMessage != err.message)
+        {
+          node.error(`socket error: ${err.name}: ${err.message}`); //only send the error if it is new - e.g. don't send endless EHOSTUNREACH
+          lastSocketErrorMessage = err.message;
+        }
         debug(`socket error: ${err.name}: ${err.message}`)
         this._state = 'error';
         socket.destroy();
         //socket.connect(consettings);
       }
-      
-      
+
+
       const _onTimeoutEvent = () => {
         node.warn('socket timeout');
         debug('socket timeout');
       }
-        
+
       socket.on('connect', _onConnectEvent);
       socket.on('ready', _onReadyEvent);
       socket.on('close', _onCloseEvent);
       socket.on('error', _onErrorEvent);
       socket.on('timeout', _onTimeoutEvent );
-    
+
       recon = new Reconnect(socket,consettings);
-    
+
       socket.connect(consettings);
 
       handler(node.modbusconn);
 
       node.on("close", function() {
-        timestamplog(`Disconnecting from modbustcp slave at ${socket.remoteAddress}:${socket.remotePort}`);
+        node.log(`Disconnecting from modbustcp slave at ${socket.remoteAddress}:${socket.remotePort}`);
         socket.removeListener('connect', _onConnectEvent);
         socket.removeListener('ready', _onReadyEvent);
         socket.removeListener('close', _onCloseEvent);
@@ -156,7 +161,7 @@ module.exports = function(RED) {
         socket.removeListener('timeout', _onTimeoutEvent );
         recon.end();
       });
-  
+
 
     };
 
@@ -179,7 +184,7 @@ module.exports = function(RED) {
     this.rateUnit = config.rateUnit;
     this.connection = null;
     this.ieeeType = config.ieeeType || 'off';
-    //this.ieeeBE = 
+    //this.ieeeBE =
     if (config.hasOwnProperty('ieeeBE')) {
       this.ieeeBE = (config.ieeeBE === "true");
     }
@@ -204,7 +209,7 @@ module.exports = function(RED) {
     let timers = {}; // used as a collection of running timers externally injected
 
     node.onCloseEvent = function() {
-      timestamplog(node.name + " was disconnected or was unable to connect");
+      node.log(node.name + " was disconnected or was unable to connect");
       node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
       clearInterval(timerID);
       timerID = null;
@@ -256,9 +261,9 @@ module.exports = function(RED) {
             else debug("socket state: %s",modbusTCPServer.getState());
             }, calcRate(node.rate, node.rateUnit));
         }
-  
+
       }
-            
+
     }; //onReadyEvent
 
     if (compver(process.versions.node,'9.11.0') >= 0){
@@ -276,7 +281,7 @@ module.exports = function(RED) {
     });
 
     node.on("close", function() {
-      timestamplog(node.name + ":" + "Closing");
+      node.debug(node.name + ":" + "Closing");
 
       clearInterval(timerID);
       timerID = null;
@@ -286,7 +291,7 @@ module.exports = function(RED) {
           clearInterval(timers[property]);
         }
       }
-   
+
       if (compver(process.versions.node,'9.11.0') >= 0){
         socket.removeListener("connect", node.onConnectEvent);
       } else {
@@ -320,11 +325,11 @@ module.exports = function(RED) {
             quantity: params.quantity,
             dataType: params.dataType,
           }];
-          
+
           if (params.hasOwnProperty('topic')){
             params.values[0].topic = params.topic;
           }
-          
+
           if (params.hasOwnProperty('name')){
             params.values[0].name = params.name;
           }
@@ -334,7 +339,7 @@ module.exports = function(RED) {
           if (params.hasOwnProperty('ieeeBE')){
             params.values[0].ieeeBE = params.ieeeBE;
           }
-          
+
         }
 
         async function processValues(values, name, interval){
@@ -361,7 +366,7 @@ module.exports = function(RED) {
             if (modbusTCPServer.getState() === 'ready'){
               bigArray.push(settings);
               ee.emit('flush');
-              // ModbusMaster(settings); 
+              // ModbusMaster(settings);
             }
             else debug("socket state: %s",modbusTCPServer.getState());
 
@@ -381,7 +386,7 @@ module.exports = function(RED) {
           processValues(params.values, params.name, params.interval);
           //ModbusMaster(settings);
         }, params.interval || calcRate());
-  
+
         if (params.name){
           timers[params.name] = loopId;
           // console.log("Timers:", params.name);
@@ -399,9 +404,9 @@ module.exports = function(RED) {
       else{
         SetupLoop(p);
       }
-      
+
     });
-    
+
 
     async function flushArray() {
       try {
@@ -430,7 +435,7 @@ module.exports = function(RED) {
 
       // Do nothing if we are not connected
       if (modbusTCPServer.getState() !== 'ready') return;
-      
+
       set_connected_polling(settings.dataType);
       switch (settings.dataType) {
         // accept either a #, a name (Coil), or an FC string (FC1, FC 1)
@@ -464,11 +469,11 @@ module.exports = function(RED) {
           }catch(e) {
               modbus_error_check(e);
               console.error(e);
-          };            
+          };
           break;
         case 3:
         case "FC3":
-        case "FC 3":            
+        case "FC 3":
         case "HoldingRegister": //FC: 3
           try{
             resp = await node.connection.readHoldingRegisters(address, quantity);
@@ -523,7 +528,7 @@ module.exports = function(RED) {
         default:
           node.status({ fill: "red", shape: "dot", text: `Invalid FC: ${settings.dataType}` });
           debug(`Invalid FC: ${settings.dataType}`);
-          break;   
+          break;
       }
     }
 
@@ -536,35 +541,33 @@ module.exports = function(RED) {
       node.status({
         fill: "green",
         shape: "dot",
-        text: "Connected" 
+        text: "Connected"
       });
     }
 
     function set_connected_polling(fcType) {
-      node.status({ 
-        fill: "yellow", 
-        shape: "dot", 
-        text: `Polling: ${fcType}` 
+      node.status({
+        fill: "yellow",
+        shape: "dot",
+        text: `Polling: ${fcType}`
       });
     }
 
     function modbus_error_check(err) {
       if (err) {
-        node.status({ 
-          fill: "red", 
-          shape: "dot", 
-          text: "Error" 
+        node.status({
+          fill: "red",
+          shape: "dot",
+          text: "Error"
         });
-        
-        timestamplog(err);
-        
+
         node.error("ModbusTCPClient: " + JSON.stringify(err));
         socket.emit('error',{err: 'local error', message: 'Locally emitted error'});
         return false;
       }
       return true;
     }
-    
+
     //
     // END: Set Node Status indicators
     //////////////////////////////////////////////////////////
@@ -585,7 +588,7 @@ module.exports = function(RED) {
     let socket = new net.Socket();
 
     node.onCloseEvent = function() {
-      timestamplog(`${node.name} was Disconnected`);
+      node.log(`${node.name} was Disconnected`);
       node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
     };
 
@@ -600,7 +603,7 @@ module.exports = function(RED) {
     socket.on("connect", node.onConnectEvent);
     socket.on("close", node.onCloseEvent);
     socket.on('ready', node.onReadyEvent);
-    
+
 
     modbusTCPServer.initializeModbusTCPConnection(socket,node.onConnectEvent,function(connection) {
       node.connection = connection;
@@ -617,7 +620,6 @@ module.exports = function(RED) {
     function modbus_error_check(err) {
       if (err) {
         node.status({ fill: "red", shape: "dot", text: "Error" });
-        timestamplog(err);
         node.error(node.name + ": " + JSON.stringify(err));
         return false;
       }
@@ -731,7 +733,7 @@ module.exports = function(RED) {
     });
 
     node.on("close", function() {
-      timestamplog(node.name + ":" + "Closing");
+      node.log(node.name + ":" + "Closing");
       node.status({ fill: "grey", shape: "dot", text: "Disconnected" });
       socket.removeListener("connect", node.onConnectEvent);
       socket.removeListener("close", node.onCloseEvent);
